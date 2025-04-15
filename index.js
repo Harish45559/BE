@@ -17,7 +17,13 @@ const salesRoutes = require('./routes/salesRoutes');
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+// ✅ CORS configuration for frontend hosted on Render
+app.use(cors({
+  origin: 'https://fe-s9dv.onrender.com', // 🔁 Replace this with your actual frontend Render URL
+  credentials: true
+}));
+
 app.use(express.json());
 
 // ✅ Register routes
