@@ -40,10 +40,19 @@ app.use('/api/sales', salesRoutes);
 db.sync({ force: false }).then(async () => {
   console.log('✅ PostgreSQL synced');
 
-  await Admin.findOrCreate({
+  // Force update password if admin exists
+  const [adminUser, created] = await Admin.findOrCreate({
     where: { username: 'admin' },
     defaults: { password: 'H@rish45559' },
   });
+
+  if (!created) {
+    adminUser.password = 'H@rish45559';
+    await adminUser.save();
+    console.log('🔁 Admin password updated');
+  } else {
+    console.log('✅ Admin user created');
+  }
 
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
