@@ -42,7 +42,7 @@ db.sync({ force: false }).then(async () => {
 
   await Admin.findOrCreate({
     where: { username: 'admin' },
-    defaults: { password: 'password123' },
+    defaults: { password: 'H@rish45559' },
   });
 
   const PORT = process.env.PORT || 5000;
