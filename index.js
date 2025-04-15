@@ -20,7 +20,7 @@ const app = express();
 
 // ✅ CORS configuration for frontend hosted on Render
 app.use(cors({
-  origin: 'https://fe-s9dv.onrender.com', // 🔁 Replace this with your actual frontend Render URL
+  origin: 'https://fe-nb3e.onrender.com', // ✅ Your frontend live link
   credentials: true
 }));
 
@@ -47,7 +47,7 @@ db.sync({ force: false }).then(async () => {
 
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
-    console.log(`🚀 Server running at http://localhost:${PORT}`);
+    console.log(`🚀 Backend live at: https://be-q39a.onrender.com`);
   });
 }).catch(err => {
   console.error('❌ Failed to sync DB or start server:', err);
