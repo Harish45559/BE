@@ -2,6 +2,7 @@ const { DateTime } = require('luxon');
 const { Op } = require('sequelize');
 const Attendance = require('../models/Attendance');
 const Employee = require('../models/Employee');
+const bcrypt = require('bcryptjs'); // make sure it's at the top
 
 // Utilities
 const getUKTime = () => DateTime.now().setZone('Europe/London');
@@ -13,9 +14,21 @@ const formatDuration = (minutes) => {
 };
 
 // ✅ Clock In
+
+
 exports.clockIn = async (req, res) => {
   try {
-    const { employee_id, custom_time } = req.body;
+    const { employee_id, pin, custom_time } = req.body;
+
+    const employee = await Employee.findByPk(employee_id);
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    const isValidPin = await bcrypt.compare(pin, employee.pin);
+    if (!isValidPin) {
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
 
     const dt = custom_time
       ? DateTime.fromISO(custom_time).setZone('Europe/London')
@@ -23,8 +36,8 @@ exports.clockIn = async (req, res) => {
 
     const attendance = await Attendance.create({
       employee_id,
-      clock_in: dt.toJSDate(),           // ✅ stored as ISO Date
-      clock_in_uk: formatBST(dt),        // ✅ stored as UK display string
+      clock_in: dt.toJSDate(),
+      clock_in_uk: formatBST(dt),
     });
 
     res.status(200).json(attendance);
@@ -34,10 +47,21 @@ exports.clockIn = async (req, res) => {
   }
 };
 
+
 // ✅ Clock Out
 exports.clockOut = async (req, res) => {
   try {
-    const { employee_id, custom_time } = req.body;
+    const { employee_id, pin, custom_time } = req.body;
+
+    const employee = await Employee.findByPk(employee_id);
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    const isValidPin = await bcrypt.compare(pin, employee.pin);
+    if (!isValidPin) {
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
 
     const attendance = await Attendance.findOne({
       where: {
@@ -57,18 +81,18 @@ exports.clockOut = async (req, res) => {
       ? DateTime.fromISO(custom_time).setZone('Europe/London')
       : getUKTime();
 
-    // Handle overnight shift
     if (clockOutTime < clockInTime) {
       clockOutTime = clockOutTime.plus({ days: 1 });
     }
 
     const totalMinutes = Math.floor(clockOutTime.diff(clockInTime, 'minutes').minutes);
 
-    attendance.clock_out = clockOutTime.toJSDate();         // ✅ UTC-stored
-    attendance.clock_out_uk = formatBST(clockOutTime);      // ✅ UK string
+    attendance.clock_out = clockOutTime.toJSDate();
+    attendance.clock_out_uk = formatBST(clockOutTime);
     attendance.total_work_hours = formatDuration(totalMinutes);
 
     await attendance.save();
+
     res.status(200).json(attendance);
   } catch (err) {
     console.error('Clock Out Error:', err);
