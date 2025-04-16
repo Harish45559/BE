@@ -6,17 +6,16 @@ exports.login = async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // 🔐 Try Admin login
+    // Try Admin (plain text comparison)
     let user = await Admin.findOne({ where: { username } });
     let role = 'admin';
 
-    if (user) {
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(401).json({ message: 'Invalid password' });
-      }
-    } else {
-      // 🔐 Try Employee login
+    if (user && user.password !== password) {
+      return res.status(401).json({ message: 'Invalid password' });
+    }
+
+    // Try Employee (bcrypt comparison)
+    if (!user) {
       user = await Employee.findOne({ where: { username } });
       role = 'employee';
 
@@ -30,7 +29,6 @@ exports.login = async (req, res) => {
       }
     }
 
-    // ✅ Generate token
     const token = jwt.sign({ id: user.id, role }, process.env.JWT_SECRET, { expiresIn: '1d' });
     res.json({ token, role });
   } catch (err) {
@@ -40,7 +38,9 @@ exports.login = async (req, res) => {
 };
 
 
+
 // 🔐 Forgot Password: searches both Admin and Employee tables
+
 exports.forgotPassword = async (req, res) => {
   const { username, newPassword } = req.body;
 
@@ -51,14 +51,14 @@ exports.forgotPassword = async (req, res) => {
   try {
     let user = await Admin.findOne({ where: { username } });
     if (user) {
-      user.password = await bcrypt.hash(newPassword, 10);
+      user.password = newPassword;
       await user.save();
       return res.json({ message: 'Admin password updated successfully' });
     }
 
     user = await Employee.findOne({ where: { username } });
     if (user) {
-      user.password = await bcrypt.hash(newPassword, 10);
+      user.password = await bcrypt.hash(newPassword, 10); // ✅ hash before saving
       await user.save();
       return res.json({ message: 'Employee password updated successfully' });
     }
@@ -69,3 +69,4 @@ exports.forgotPassword = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
