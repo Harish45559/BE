@@ -134,21 +134,31 @@ exports.getStatus = async (req, res) => {
     const end = date.endOf('day').toJSDate();
 
     const employees = await Employee.findAll();
-    const attendance = await Attendance.findAll({
+
+    const attendanceRecords = await Attendance.findAll({
       where: {
         clock_in: { [Op.between]: [start, end] },
       },
+      order: [['clock_in', 'DESC']],
     });
 
-    const statusMap = {};
-    attendance.forEach((a) => {
-      statusMap[a.employee_id] = true;
+    const latestStatus = {};
+
+    attendanceRecords.forEach((record) => {
+      // If not already seen this employee today, take the most recent entry
+      if (!latestStatus[record.employee_id]) {
+        if (record.clock_out) {
+          latestStatus[record.employee_id] = 'Clocked Out';
+        } else {
+          latestStatus[record.employee_id] = 'Clocked In';
+        }
+      }
     });
 
     const result = employees.map((emp) => ({
       id: emp.id,
       name: `${emp.first_name} ${emp.last_name}`,
-      status: statusMap[emp.id] ? 'Clocked In' : 'Not Clocked In',
+      status: latestStatus[emp.id] || 'Not Clocked In',
     }));
 
     res.status(200).json(result);
