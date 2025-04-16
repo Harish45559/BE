@@ -15,12 +15,15 @@ exports.addEmployee = async (req, res) => {
 
     const newEmp = await Employee.create({
       ...data,
-      password: hashedPassword
+      password: hashedPassword,
+      pin: data.pin ? await bcrypt.hash(data.pin, 10) : null
     });
+    
 
     res.status(201).json({ message: 'Employee added', employee: newEmp });
   } catch (err) {
-    console.error('Add Employee Error:', err);
+    console.error('❌ Add Employee Error:', err.message, err.stack);
+
     res.status(500).json({ error: 'Server error while adding employee' });
   }
 };
@@ -45,7 +48,10 @@ exports.editEmployee = async (req, res) => {
     const dataToUpdate = { ...req.body };
 
     // Optional: prevent password update if empty
-    if (!dataToUpdate.password) delete dataToUpdate.password;
+    if (dataToUpdate.pin) {
+      dataToUpdate.pin = await bcrypt.hash(dataToUpdate.pin, 10);
+    }
+    
 
     await employee.update(dataToUpdate);
 
