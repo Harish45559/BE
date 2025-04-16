@@ -1,21 +1,45 @@
 const jwt = require('jsonwebtoken');
-const { Admin } = require('../models');
+const bcrypt = require('bcryptjs');
+const { Admin, Employee } = require('../models');
 
 exports.login = async (req, res) => {
   const { username, password } = req.body;
+
   try {
-    const admin = await Admin.findOne({ where: { username } });
-    if (!admin || admin.password !== password) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    // Try Admin (plain text comparison)
+    let user = await Admin.findOne({ where: { username } });
+    let role = 'admin';
+
+    if (user && user.password !== password) {
+      return res.status(401).json({ message: 'Invalid password' });
     }
 
-    const token = jwt.sign({ id: admin.id }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.json({ token });
+    // Try Employee (bcrypt comparison)
+    if (!user) {
+      user = await Employee.findOne({ where: { username } });
+      role = 'employee';
+
+      if (!user) {
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(401).json({ message: 'Invalid password' });
+      }
+    }
+
+    const token = jwt.sign({ id: user.id, role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    res.json({ token, role });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+
+
+// 🔐 Forgot Password: searches both Admin and Employee tables
 
 exports.forgotPassword = async (req, res) => {
   const { username, newPassword } = req.body;
@@ -25,18 +49,24 @@ exports.forgotPassword = async (req, res) => {
   }
 
   try {
-    const user = await Admin.findOne({ where: { username } });
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    let user = await Admin.findOne({ where: { username } });
+    if (user) {
+      user.password = newPassword;
+      await user.save();
+      return res.json({ message: 'Admin password updated successfully' });
     }
 
-    user.password = newPassword; // ⚠️ You should hash this in real apps!
-    await user.save();
+    user = await Employee.findOne({ where: { username } });
+    if (user) {
+      user.password = await bcrypt.hash(newPassword, 10); // ✅ hash before saving
+      await user.save();
+      return res.json({ message: 'Employee password updated successfully' });
+    }
 
-    res.json({ message: 'Password updated successfully' });
+    res.status(404).json({ message: 'User not found' });
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
+

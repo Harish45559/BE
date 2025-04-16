@@ -27,5 +27,10 @@ const Employee = sequelize.define('Employee', {
 Employee.beforeCreate(async (emp) => {
   emp.password = await bcrypt.hash(emp.password, 10);
 });
+Employee.beforeUpdate(async (emp) => {
+  if (emp.changed('password')) {
+    emp.password = await bcrypt.hash(emp.password, 10);
+  }
+});
 
 module.exports = Employee;
