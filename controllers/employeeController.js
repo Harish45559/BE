@@ -1,8 +1,6 @@
+// ✅ employeeController.js (Controller)
 const { Employee, Attendance } = require('../models');
-const bcrypt = require('bcryptjs');
 
-
-// ➕ Add Employee
 exports.addEmployee = async (req, res) => {
   try {
     const data = req.body;
@@ -11,24 +9,14 @@ exports.addEmployee = async (req, res) => {
       return res.status(400).json({ error: 'Password is required' });
     }
 
-    const hashedPassword = await bcrypt.hash(data.password, 10);
-
-    const newEmp = await Employee.create({
-      ...data,
-      password: hashedPassword,
-      pin: data.pin ? await bcrypt.hash(data.pin, 10) : null
-    });
-    
-
+    const newEmp = await Employee.create({ ...data });
     res.status(201).json({ message: 'Employee added', employee: newEmp });
   } catch (err) {
-    console.error('❌ Add Employee Error:', err.message, err.stack);
-
+    console.error('❌ Add Employee Error:', err.message);
     res.status(500).json({ error: 'Server error while adding employee' });
   }
 };
 
-// 📄 List All Employees
 exports.listEmployees = async (req, res) => {
   try {
     const employees = await Employee.findAll();
@@ -39,42 +27,43 @@ exports.listEmployees = async (req, res) => {
   }
 };
 
-// ✏️ Edit Employee
 exports.editEmployee = async (req, res) => {
   try {
     const employee = await Employee.findByPk(req.params.id);
     if (!employee) return res.status(404).json({ error: 'Not found' });
 
     const dataToUpdate = { ...req.body };
-
-    // Optional: prevent password update if empty
-    if (dataToUpdate.pin) {
-      dataToUpdate.pin = await bcrypt.hash(dataToUpdate.pin, 10);
-    }
-    
-
     await employee.update(dataToUpdate);
 
     res.json({ message: 'Employee updated', employee });
   } catch (err) {
-    console.error('Update Error:', err);
+    console.error('Update Error:', err.message);
     res.status(500).json({ error: 'Error updating employee' });
   }
 };
 
+exports.deleteEmployee = async (req, res) => {
+  try {
+    const employee = await Employee.findByPk(req.params.id);
+    if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
-// 🗑️ Delete Employeeexports.deleteEmployee = async (req, res) => {
-  exports.deleteEmployee = async (req, res) => {
-    try {
-      const employee = await Employee.findByPk(req.params.id);
-      if (!employee) return res.status(404).json({ error: 'Employee not found' });
-  
-      await Attendance.destroy({ where: { employee_id: employee.id } });
-      await employee.destroy();
-  
-      res.json({ message: 'Employee deleted' });
-    } catch (err) {
-      console.error('Delete Employee Error:', err);
-      res.status(500).json({ error: 'Error deleting employee' });
-    }
-  };
+    await Attendance.destroy({ where: { employee_id: employee.id } });
+    await employee.destroy();
+
+    res.json({ message: 'Employee deleted' });
+  } catch (err) {
+    console.error('Delete Employee Error:', err);
+    res.status(500).json({ error: 'Error deleting employee' });
+  }
+};
+
+exports.getEmployee = async (req, res) => {
+  try {
+    const employee = await Employee.findByPk(req.params.id);
+    if (!employee) return res.status(404).json({ error: 'Not found' });
+    res.json(employee);
+  } catch (err) {
+    console.error('Get Employee Error:', err);
+    res.status(500).json({ error: 'Error fetching employee' });
+  }
+};
