@@ -18,9 +18,20 @@ dotenv.config();
 
 const app = express();
 
-// ✅ CORS configuration for frontend hosted on Render
+// ✅ Allow both deployed and local frontend
+const allowedOrigins = [
+  'https://fe-nb3e.onrender.com',
+  'http://localhost:5173'
+];
+
 app.use(cors({
-  origin: 'https://fe-nb3e.onrender.com', // ✅ Your frontend live link
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
