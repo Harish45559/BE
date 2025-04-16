@@ -6,16 +6,17 @@ exports.login = async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // Try Admin (plain text comparison)
+    // Try Admin
     let user = await Admin.findOne({ where: { username } });
     let role = 'admin';
 
-    if (user && user.password !== password) {
-      return res.status(401).json({ message: 'Invalid password' });
-    }
-
-    // Try Employee (bcrypt comparison)
-    if (!user) {
+    if (user) {
+      const isAdminMatch = await bcrypt.compare(password, user.password);
+      if (!isAdminMatch) {
+        return res.status(401).json({ message: 'Invalid password' });
+      }
+    } else {
+      // Try Employee
       user = await Employee.findOne({ where: { username } });
       role = 'employee';
 
