@@ -1,27 +1,40 @@
-const Sequelize = require('sequelize');
 const sequelize = require('../config/db');
-const db = {};
+const { DataTypes } = require('sequelize');
 
-db.Sequelize = Sequelize;
-db.sequelize = sequelize;
+// Models
+const Admin = require('./Admin');
+const Employee = require('./Employee');
+const Attendance = require('./Attendance');
+const Report = require('./Report');
+const Category = require('./Category');
+const MenuItem = require('./menuItem');
+const Order = require('./Order')(sequelize, DataTypes);
 
-const DataTypes = Sequelize.DataTypes;
+// 🔁 Model Relationships
 
-// Initialize models
-db.Admin = require('./Admin')(sequelize, DataTypes);
-db.Employee = require('./Employee')(sequelize, DataTypes);
-db.Attendance = require('./Attendance')(sequelize, DataTypes);
-db.Category = require('./Category')(sequelize, DataTypes);
-db.MenuItem = require('./menuItem')(sequelize, DataTypes);
-db.Order = require('./Order')(sequelize, DataTypes);
-db.Report = require('./Report')(sequelize, DataTypes);
-db.TillStatus = require('./TillStatus')(sequelize, DataTypes);
-
-// ✅ Initialize associations
-Object.keys(db).forEach((modelName) => {
-  if (db[modelName].associate) {
-    db[modelName].associate(db);
-  }
+// Employee ↔️ Attendance
+Employee.hasMany(Attendance, { foreignKey: 'employee_id' });
+Attendance.belongsTo(Employee, {
+  foreignKey: 'employee_id',
+  as: 'employee'
 });
 
-module.exports = db;
+// Employee ↔️ Report
+Employee.hasMany(Report, { foreignKey: 'employee_id' });
+Report.belongsTo(Employee, { foreignKey: 'employee_id' });
+
+// Category ↔️ MenuItem
+Category.hasMany(MenuItem, { foreignKey: 'categoryId' });
+MenuItem.belongsTo(Category, { foreignKey: 'categoryId' });
+
+// ✅ Export everything for use
+module.exports = {
+  sequelize,
+  Admin,
+  Employee,
+  Attendance,
+  Report,
+  Category,
+  MenuItem,
+  Order,
+};

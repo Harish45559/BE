@@ -1,7 +1,6 @@
 // server/models/Order.js
 module.exports = (sequelize, DataTypes) => {
   const Order = sequelize.define('Order', {
-    
     customer_name: {
       type: DataTypes.STRING,
       allowNull: false,
