@@ -163,3 +163,26 @@ exports.exportPDF = async (req, res) => {
         doc.end();
     }
 };
+
+
+exports.getTillCash = async (req, res) => {
+    try {
+      const { from, to } = req.query;
+      const where = { payment_method: 'Cash' };
+  
+      if (from || to) {
+        where.created_at = {};
+        if (from) where.created_at[Op.gte] = new Date(from);
+        if (to) where.created_at[Op.lte] = new Date(to);
+      }
+  
+      const orders = await Order.findAll({ where });
+      const cashTotal = orders.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
+  
+      res.json({ opening: 100, cashSales: cashTotal, closing: 100 + cashTotal });
+    } catch (err) {
+      console.error('Till Cash Fetch Error:', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  };
+  

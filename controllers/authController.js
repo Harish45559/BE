@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { Admin, Employee } = require('../models');
+const { Admin, Employee } = require('../models'); // ✅ Already gives you Employee
+
+
 
 exports.login = async (req, res) => {
   const { username, password } = req.body;
@@ -70,3 +72,34 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
+// Verify PIN for employee login
+exports.verifyPin = async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    const user = await Employee.findOne({ where: { username } });
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid username' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid password' });
+    }
+
+    return res.json({
+      success: true,
+      role: user.role,
+      user: {
+        id: user.id,
+        username: user.username,
+        first_name: user.first_name,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    console.error('Verify PIN error:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};

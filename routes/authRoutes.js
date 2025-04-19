@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { login } = require('../controllers/authController');
-const authController = require('../controllers/authController'); // ✅ Add this line
+const authController = require('../controllers/authController');
 
-router.post('/login', login);
-router.post('/forgot-password', authController.forgotPassword); // <- ADD THIS
-
+// Route definitions
+router.post('/login', authController.login);
+router.post('/verify-pin', authController.verifyPin);
+router.post('/forgot-password', authController.forgotPassword); // ✅ fix
 
 module.exports = router;
