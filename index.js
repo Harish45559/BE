@@ -4,25 +4,16 @@ const dotenv = require('dotenv');
 const db = require('./config/db');
 const { Admin } = require('./models');
 
-// ✅ Route imports
-const authRoutes = require('./routes/authRoutes');
-const attendanceRoutes = require('./routes/attendanceRoutes');
-const employeeRoutes = require('./routes/employeeRoutes');
-const reportRoutes = require('./routes/reportRoutes');
-const orderRoutes = require('./routes/orderRoutes');
-const categoryRoutes = require('./routes/categoryRoutes');
-const menuRoutes = require('./routes/menuRoutes');
-const salesRoutes = require('./routes/salesRoutes');
-
 dotenv.config();
-
 const app = express();
 
+// ✅ FIXED: Allowed origins
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://fe-5n7s.onrender.com'  // ✅ your frontend on Render
+  'https://fe-2n6s.onrender.com'
 ];
 
+// ✅ CORS middleware
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -34,28 +25,45 @@ app.use(cors({
   credentials: true
 }));
 
-
+// ✅ Allow preflight responses
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
 
 app.use(express.json());
 
+// ✅ Import routes
+const authRoutes = require('./routes/authRoutes');
+const employeeRoutes = require('./routes/employeeRoutes');
+const attendanceRoutes = require('./routes/attendanceRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+const orderRoutes = require('./routes/orderRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const menuRoutes = require('./routes/menuRoutes');
+const salesRoutes = require('./routes/salesRoutes');
+
 // ✅ Register routes
-app.use('/api', authRoutes);
-app.use('/api/attendance', attendanceRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/attendance', attendanceRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/sales', salesRoutes);
 
-// ✅ DB Sync and Server Start
+// ✅ Sync DB and Start server
 db.sync({ force: false }).then(async () => {
   console.log('✅ PostgreSQL synced');
 
-  // Force update password if admin exists
   const [adminUser, created] = await Admin.findOrCreate({
     where: { username: 'admin' },
-    defaults: { password: 'H@rish45559' },
+    defaults: { password: 'H@rish45559' }
   });
 
   if (!created) {
