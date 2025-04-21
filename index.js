@@ -20,7 +20,7 @@ const app = express();
 
 // ✅ Allow both deployed and local frontend
 const allowedOrigins = [
-  'https://fe-nb3e.onrender.com',
+  'https://fe-2n6s.onrender.com',
   'http://localhost:5173'
 ];
 
@@ -67,7 +67,7 @@ db.sync({ force: false }).then(async () => {
 
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
-    console.log(`🚀 Backend live at: https://be-q39a.onrender.com`);
+    console.log(`🚀 Backend live at: https://be-i5z1.onrender.com`);
   });
 }).catch(err => {
   console.error('❌ Failed to sync DB or start server:', err);
