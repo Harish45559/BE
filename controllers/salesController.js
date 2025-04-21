@@ -1,77 +1,85 @@
-// ✅ Updated: server/controllers/salesController.js
-
 const { Op } = require('sequelize');
 const db = require('../models');
-const Order = db.Order;
+const { Order, Till } = db;
 const { DateTime } = require('luxon');
 
-// 🕒 Helper: Convert any date to UK timezone
-const toUKTime = (date) => DateTime.fromISO(date).setZone('Europe/London').toJSDate();
+// Convert to UK timezone
+const toUK = (dateStr) => DateTime.fromISO(dateStr).setZone('Europe/London').toISODate();
 
-exports.getSalesReport = async (req, res) => {
-  try {
-    const { from, to, search, orderType, category, item } = req.query;
+// OPEN TILL
+exports.openTill = async (req, res) => {
+  const { employee } = req.body;
+  const today = toUK(DateTime.now().toISO());
 
-    let where = {};
+  const existing = await Till.findOne({ where: { date: today } });
+  if (existing) return res.status(400).json({ error: 'Till already opened' });
 
-    // 📆 Apply UK time conversion for date filters
-    if (from) {
-      where.created_at = { [Op.gte]: toUKTime(from) };
-    }
-    if (to) {
-      where.created_at = {
-        ...(where.created_at || {}),
-        [Op.lte]: toUKTime(to)
-      };
-    }
+  const till = await Till.create({
+    date: today,
+    employee,
+    opening_cash: 100,
+    open_time: new Date()
+  });
 
-    if (search) {
-      where.customer_name = { [Op.iLike]: `%${search}%` };
-    }
-
-    if (orderType && orderType !== 'All') {
-      where.order_type = orderType;
-    }
-
-    const allOrders = await Order.findAll({ where, order: [['created_at', 'DESC']] });
-
-    // Filter by category/item from inside "items"
-    const filtered = allOrders.filter(order => {
-      const items = order.items || [];
-      const itemMatch = !item || items.some(i => i.name === item);
-      const categoryMatch = !category || items.some(i => i.category === category);
-      return itemMatch && categoryMatch;
-    });
-
-    res.json({ sales: filtered });
-  } catch (err) {
-    console.error('Error fetching sales report:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
+  res.json({ message: 'Till opened', till });
 };
 
-exports.getTopSellingItems = async (req, res) => {
-  try {
-    const orders = await Order.findAll();
-    const itemCount = {};
+// CLOSE TILL
+exports.closeTill = async (req, res) => {
+  const { employee } = req.body;
+  const today = toUK(DateTime.now().toISO());
 
-    orders.forEach(order => {
-      (order.items || []).forEach(item => {
-        if (!itemCount[item.name]) {
-          itemCount[item.name] = 0;
-        }
-        itemCount[item.name] += item.qty || 1;
-      });
-    });
+  const till = await Till.findOne({ where: { date: today } });
+  if (!till) return res.status(404).json({ error: 'Till not found' });
+  if (till.close_time) return res.status(400).json({ error: 'Till already closed' });
 
-    const topItems = Object.entries(itemCount)
-      .map(([name, qty]) => ({ name, total_sold: qty }))
-      .sort((a, b) => b.total_sold - a.total_sold)
-      .slice(0, 10); // Top 10
+  till.close_time = new Date();
+  till.closing_cash = 100;
+  till.closed_by = employee;
+  await till.save();
 
-    res.json(topItems);
-  } catch (err) {
-    console.error('Top items error:', err);
-    res.status(500).json({ message: 'Failed to fetch top items' });
-  }
+  res.json({ message: 'Till closed', till });
+};
+
+// GET TILL STATUS BY DATE
+exports.getTillStatus = async (req, res) => {
+  const { date } = req.params;
+  const record = await Till.findOne({ where: { date } });
+  if (!record) return res.status(404).json({ error: 'No till record found for date' });
+  res.json(record);
+};
+
+// GET TILL CASH COUNT BY DATE
+exports.getTillCashByDate = async (req, res) => {
+  const { date } = req.params;
+  const dayStart = DateTime.fromISO(date).startOf('day').toUTC().toISO();
+  const dayEnd = DateTime.fromISO(date).endOf('day').toUTC().toISO();
+
+  const cashOrders = await Order.findAll({
+    where: {
+      created_at: { [Op.between]: [dayStart, dayEnd] },
+      payment_method: 'Cash'
+    }
+  });
+
+  const total = cashOrders.reduce((sum, o) => sum + parseFloat(o.total_amount), 0);
+
+  res.json({ totalCash: total + 100, orders: cashOrders });
+};
+
+// TOTAL SALES
+exports.getTotalSalesByDate = async (req, res) => {
+  const { date, method } = req.query;
+  const dayStart = DateTime.fromISO(date).startOf('day').toUTC().toISO();
+  const dayEnd = DateTime.fromISO(date).endOf('day').toUTC().toISO();
+
+  const where = {
+    created_at: { [Op.between]: [dayStart, dayEnd] }
+  };
+  if (method && method !== 'All') where.payment_method = method;
+
+  const orders = await Order.findAll({ where });
+  const sum = orders.reduce((sum, o) => sum + parseFloat(o.total_amount), 0);
+
+  res.json({ total: sum.toFixed(2), orders });
 };

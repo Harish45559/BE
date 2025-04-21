@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const salesController = require('../controllers/salesController');
 
-router.get('/report', salesController.getSalesReport);
-router.get('/top-items', salesController.getTopSellingItems);
+router.post('/till/open', salesController.openTill);
+router.post('/till/close', salesController.closeTill);
+router.get('/till/status/:date', salesController.getTillStatus);
 
 module.exports = router;
