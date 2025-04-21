@@ -19,10 +19,7 @@ dotenv.config();
 const app = express();
 
 // ✅ Allow both deployed and local frontend
-const allowedOrigins = [
-  'https://fe-2n6s.onrender.com',
-  'http://localhost:5173'
-];
+const allowedOrigins = ['http://localhost:5173', 'https://fe-nb3e.onrender.com'];
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -32,8 +29,10 @@ app.use(cors({
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
 }));
+
+
 
 app.use(express.json());
 

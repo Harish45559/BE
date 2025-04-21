@@ -1,10 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { login } = require('../controllers/authController');
-const authController = require('../controllers/authController'); // ✅ Add this line
+const authController = require('../controllers/authController');
 
-router.post('/login', login);
-router.post('/forgot-password', authController.forgotPassword); // <- ADD THIS
-
+router.post('/login', authController.login);
+router.post('/forgot-password', authController.forgotPassword);
 
 module.exports = router;
