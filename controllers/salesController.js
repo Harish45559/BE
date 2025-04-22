@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const db = require('../models');
-const { Order, Till } = db;
+const { Order, Till } = require('../models');
+
 const { DateTime } = require('luxon');
 
 // Convert to UK timezone

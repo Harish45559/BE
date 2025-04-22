@@ -9,8 +9,9 @@ const Report = require('./Report');
 const Category = require('./Category');
 const MenuItem = require('./menuItem');
 const Order = require('./Order')(sequelize, DataTypes);
+const Till = require('./Till')(sequelize, DataTypes); // ✅ ADD THIS LINE
 
-// 🔁 Model Relationships
+// 🖁️ Model Relationships
 
 // Employee ↔️ Attendance
 Employee.hasMany(Attendance, { foreignKey: 'employee_id' });
@@ -37,4 +38,5 @@ module.exports = {
   Category,
   MenuItem,
   Order,
+  Till // ✅ ADD THIS TOO
 };
