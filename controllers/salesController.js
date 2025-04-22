@@ -1,6 +1,6 @@
 const { Op } = require('sequelize');
 const db = require('../models');
-const { Order, TillStatuses} = db;
+const { Order, TillStatus } = db;
 const { DateTime } = require('luxon');
 
 const toUK = (dateStr) => DateTime.fromISO(dateStr).setZone('Europe/London').toISODate();
@@ -9,11 +9,11 @@ exports.openTill = async (req, res) => {
   try {
     const { employee } = req.body;
     const today = toUK(DateTime.now().toISO());
-    const exists = await TillStatuses .findOne({ where: { date: today } });
+    const exists = await TillStatus.findOne({ where: { date: today } });
 
     if (exists) return res.status(400).json({ error: 'Till already opened' });
 
-    const till = await TillStatuses .create({
+    const till = await TillStatus.create({
       date: today,
       opened_by: employee,
       open_time: new Date(),
@@ -22,7 +22,6 @@ exports.openTill = async (req, res) => {
 
     res.json({ message: 'Till opened', till });
   } catch (err) {
-    console.error('Open till error:', err);
     res.status(500).json({ error: 'Failed to open till' });
   }
 };
@@ -31,7 +30,7 @@ exports.closeTill = async (req, res) => {
   try {
     const { employee } = req.body;
     const today = toUK(DateTime.now().toISO());
-    const till = await TillStatuses .findOne({ where: { date: today } });
+    const till = await TillStatus.findOne({ where: { date: today } });
 
     if (!till) return res.status(404).json({ error: 'Till not found' });
     if (till.close_time) return res.status(400).json({ error: 'Till already closed' });
@@ -43,19 +42,17 @@ exports.closeTill = async (req, res) => {
 
     res.json({ message: 'Till closed', till });
   } catch (err) {
-    console.error('Close till error:', err);
     res.status(500).json({ error: 'Failed to close till' });
   }
 };
 
-exports.getTillStatuses  = async (req, res) => {
+exports.getTillStatus = async (req, res) => {
   try {
     const { date } = req.params;
-    const record = await TillStatuses  
+    const record = await TillStatus.findOne({ where: { date } });
     if (!record) return res.status(404).json({ error: 'No status found' });
     res.json(record);
   } catch (err) {
-    console.error('Get till status error:', err);
     res.status(500).json({ error: 'Failed to get till status' });
   }
 };
@@ -76,7 +73,6 @@ exports.getTillCashByDate = async (req, res) => {
     const total = cashOrders.reduce((sum, o) => sum + parseFloat(o.total_amount), 0);
     res.json({ totalCash: total });
   } catch (err) {
-    console.error('Till cash summary error:', err);
     res.status(500).json({ error: 'Failed to load till cash summary' });
   }
 };
@@ -112,7 +108,6 @@ exports.getTopSellingItems = async (req, res) => {
 
     res.json(result.slice(0, 10));
   } catch (err) {
-    console.error('Top items error:', err);
     res.status(500).json({ error: 'Failed to load top selling items' });
   }
 };
@@ -122,7 +117,7 @@ exports.getSalesReport = async (req, res) => {
     const { from, to, search, orderType, category, item, paymentMethod } = req.query;
     const selectedDate = from || DateTime.now().setZone('Europe/London').toFormat('yyyy-MM-dd');
 
-    const till = await TillStatuses .findOne({ where: { date: selectedDate } });
+    const till = await TillStatus.findOne({ where: { date: selectedDate } });
     let where = {};
 
     if (till?.open_time && till?.close_time) {
@@ -153,7 +148,6 @@ exports.getSalesReport = async (req, res) => {
     const sales = await Order.findAll({ where });
     res.json({ sales });
   } catch (err) {
-    console.error('Sales report error:', err);
     res.status(500).json({ error: 'Failed to load sales report' });
   }
 };
