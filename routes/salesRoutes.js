@@ -7,7 +7,7 @@ router.post('/till/open', salesController.openTill);
 router.post('/till/close', salesController.closeTill);
 
 // 📅 Till status by date
-router.get('/till-status/:date', salesController.getTillStatus);
+router.get('/till-status/:date', salesController.gettillstatus);
 
 // 💰 Till Cash Summary (cash sales total)
 router.get('/till-cash', salesController.getTillCashByDate);
