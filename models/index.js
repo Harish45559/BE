@@ -13,6 +13,7 @@ const TillStatus = require('./tillStatus')(sequelize, DataTypes);
 
 
 
+
 // 🖁️ Model Relationships
 
 // Employee ↔️ Attendance
@@ -40,5 +41,5 @@ module.exports = {
   Category,
   MenuItem,
   Order,
-  TillStatus // ✅ use this instead of Till
+  tillstatus // ✅ use this instead of Till
 };
