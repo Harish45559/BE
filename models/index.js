@@ -9,7 +9,7 @@ const Report = require('./Report');
 const Category = require('./Category');
 const MenuItem = require('./menuItem');
 const Order = require('./Order')(sequelize, DataTypes);
-const tillstatus = require('./tillStatus')(sequelize, DataTypes);
+const TillStatuses  = require('./TillStatuses')(sequelize, DataTypes);
 
 
 // 🖁️ Model Relationships
@@ -39,5 +39,5 @@ module.exports = {
   Category,
   MenuItem,
   Order,
-  tillstatus // ✅ Add here
+  TillStatuses  // ✅ Add here
 };

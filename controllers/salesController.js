@@ -1,6 +1,6 @@
 const { Op } = require('sequelize');
 const db = require('../models');
-const { Order, tillstatus } = db;
+const { Order, TillStatuses} = db;
 const { DateTime } = require('luxon');
 
 const toUK = (dateStr) => DateTime.fromISO(dateStr).setZone('Europe/London').toISODate();
@@ -9,11 +9,11 @@ exports.openTill = async (req, res) => {
   try {
     const { employee } = req.body;
     const today = toUK(DateTime.now().toISO());
-    const exists = await tillstatus.findOne({ where: { date: today } });
+    const exists = await TillStatuses .findOne({ where: { date: today } });
 
     if (exists) return res.status(400).json({ error: 'Till already opened' });
 
-    const till = await tillstatus.create({
+    const till = await TillStatuses .create({
       date: today,
       opened_by: employee,
       open_time: new Date(),
@@ -31,7 +31,7 @@ exports.closeTill = async (req, res) => {
   try {
     const { employee } = req.body;
     const today = toUK(DateTime.now().toISO());
-    const till = await tillstatus.findOne({ where: { date: today } });
+    const till = await TillStatuses .findOne({ where: { date: today } });
 
     if (!till) return res.status(404).json({ error: 'Till not found' });
     if (till.close_time) return res.status(400).json({ error: 'Till already closed' });
@@ -48,11 +48,10 @@ exports.closeTill = async (req, res) => {
   }
 };
 
-exports.gettillstatus = async (req, res) => {
+exports.getTillStatuses  = async (req, res) => {
   try {
     const { date } = req.params;
-    const record = await tillstatus.findOne({ where: { date } });
-
+    const record = await TillStatuses  
     if (!record) return res.status(404).json({ error: 'No status found' });
     res.json(record);
   } catch (err) {
@@ -123,7 +122,7 @@ exports.getSalesReport = async (req, res) => {
     const { from, to, search, orderType, category, item, paymentMethod } = req.query;
     const selectedDate = from || DateTime.now().setZone('Europe/London').toFormat('yyyy-MM-dd');
 
-    const till = await tillstatus.findOne({ where: { date: selectedDate } });
+    const till = await TillStatuses .findOne({ where: { date: selectedDate } });
     let where = {};
 
     if (till?.open_time && till?.close_time) {

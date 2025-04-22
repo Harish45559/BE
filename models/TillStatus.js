@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  const tillstatus = sequelize.define('tillstatus', {
+  const TillStatuses = sequelize.define('TillStatuses', {
     date: {
       type: DataTypes.STRING,
       allowNull: false,
