@@ -1,16 +1,22 @@
-// ✅ tillStatus.js (model)
 module.exports = (sequelize, DataTypes) => {
   const TillStatus = sequelize.define('TillStatus', {
-    date: DataTypes.STRING,
-    opened_by: DataTypes.STRING,
-    open_time: DataTypes.DATE,
-    closing_amount: DataTypes.DOUBLE,
-    closed_by: DataTypes.STRING,
-    close_time: DataTypes.DATE,
-    opening_amount: DataTypes.DOUBLE,
-  }, {
-    tableName: 'till_status',
-    timestamps: false
+    date: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
+    open: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    openTime: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    closeTime: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   });
 
   return TillStatus;

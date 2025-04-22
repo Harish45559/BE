@@ -9,10 +9,7 @@ const Report = require('./Report');
 const Category = require('./Category');
 const MenuItem = require('./menuItem');
 const Order = require('./Order')(sequelize, DataTypes);
-
-
-
-
+const TillStatus = require('./tillStatus')(sequelize, DataTypes);
 
 // 🖁️ Model Relationships
 
@@ -31,7 +28,7 @@ Report.belongsTo(Employee, { foreignKey: 'employee_id' });
 Category.hasMany(MenuItem, { foreignKey: 'categoryId' });
 MenuItem.belongsTo(Category, { foreignKey: 'categoryId' });
 
-// ✅ Export everything for use
+// ✅ Export everything
 module.exports = {
   sequelize,
   Admin,
@@ -41,5 +38,5 @@ module.exports = {
   Category,
   MenuItem,
   Order,
- 
+  TillStatus // ✅ Add here
 };
