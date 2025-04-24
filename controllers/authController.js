@@ -1,35 +1,52 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-
 const { Employee, Admin } = require('../models');
-
-
 exports.login = async (req, res) => {
   const { username, password } = req.body;
 
   try {
     let user = await Employee.findOne({ where: { username } });
+    let role = 'employee';
+
     if (!user) {
       user = await Admin.findOne({ where: { username } });
-      if (!user) return res.status(401).json({ success: false, message: 'User not found' });
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'User not found' });
+      }
 
       if (user.password !== password) {
         return res.status(401).json({ success: false, message: 'Invalid password' });
       }
+
+      role = 'admin';
     } else {
       const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) return res.status(401).json({ success: false, message: 'Invalid password' });
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'Invalid password' });
+      }
     }
 
-    return res.json({ success: true, username: user.username });
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      'your_jwt_secret',
+      { expiresIn: '1d' }
+    );
+
+    // ✅ Add this line just before the return
+    console.log('Sending role:', role);
+
+    return res.status(200).json({
+      success: true,
+      token,
+      username: user.username,
+      role, // make sure this is present
+    });
 
   } catch (err) {
     console.error('Login error:', err);
-    return res.json({ success: true, token,username: user.username, role: user.role});
-    
+    return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-
 
 
 

@@ -10,8 +10,10 @@ const app = express();
 // ✅ FIXED: Allowed origins
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:5174',
   'https://fe-2n6s.onrender.com'
 ];
+
 
 // ✅ CORS middleware
 app.use(cors({
