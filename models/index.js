@@ -9,27 +9,16 @@ const Report = require('./Report');
 const Category = require('./Category');
 const MenuItem = require('./menuItem');
 const Order = require('./Order')(sequelize, DataTypes);
-const TillStatus = require('./tillstatuses')(sequelize, DataTypes); // ✅ Correct lowercase file
+
+// Relationships
+Employee.hasMany(Attendance, { foreignKey: 'employee_id' }); // ✅ Keep
+Employee.hasMany(Report, { foreignKey: 'employee_id' });     // ✅ Keep
+Report.belongsTo(Employee, { foreignKey: 'employee_id' });   // ✅ Keep
+
+Category.hasMany(MenuItem, { foreignKey: 'categoryId' });    // ✅ Keep
+MenuItem.belongsTo(Category, { foreignKey: 'categoryId' });  // ✅ Keep
 
 
-// 🖁️ Model Relationships
-
-// Employee ↔️ Attendance
-Employee.hasMany(Attendance, { foreignKey: 'employee_id' });
-Attendance.belongsTo(Employee, {
-  foreignKey: 'employee_id',
-  as: 'employee'
-});
-
-// Employee ↔️ Report
-Employee.hasMany(Report, { foreignKey: 'employee_id' });
-Report.belongsTo(Employee, { foreignKey: 'employee_id' });
-
-// Category ↔️ MenuItem
-Category.hasMany(MenuItem, { foreignKey: 'categoryId' });
-MenuItem.belongsTo(Category, { foreignKey: 'categoryId' });
-
-// ✅ Export everything
 module.exports = {
   sequelize,
   Admin,
@@ -39,5 +28,4 @@ module.exports = {
   Category,
   MenuItem,
   Order,
-  TillStatus,
 };

@@ -59,7 +59,7 @@ const Attendance = sequelize.define('Attendance', {
 });
 
 // Associations
-Attendance.belongsTo(Employee, { foreignKey: 'employee_id' });
+Attendance.belongsTo(Employee, { foreignKey: 'employee_id', as: 'employee' });
 
 /**
  * Calculate work duration in milliseconds

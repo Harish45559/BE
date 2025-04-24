@@ -1,15 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const {
-  getReports,
-  deleteAttendance,
-  exportCSV,
-  exportPDF
-} = require('../controllers/reportController');
+const reportController = require('../controllers/reportController');
 
-router.get('/reports', getReports);
-router.delete('/:id', deleteAttendance);
-router.get('/export/csv', exportCSV);
-router.get('/export/pdf', exportPDF);
+router.get('/reports', reportController.getReports);
+router.get('/export/csv', reportController.exportCSV);
+router.get('/export/pdf', reportController.exportPDF);
+router.delete('/:id', reportController.deleteAttendance);
 
 module.exports = router;

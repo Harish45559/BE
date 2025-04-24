@@ -1,4 +1,3 @@
-// server/models/Order.js
 module.exports = (sequelize, DataTypes) => {
   const Order = sequelize.define('Order', {
     customer_name: {
@@ -32,18 +31,31 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
 
+    discount_percent: {
+      type: DataTypes.FLOAT,
+      defaultValue: 0,
+    },
+
+    discount_amount: {
+      type: DataTypes.FLOAT,
+      defaultValue: 0,
+    },
+
+    final_amount: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+    },
+
     payment_method: {
       type: DataTypes.STRING,
       allowNull: false,
     },
 
-    // UTC timestamp stored normally
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
 
-    // ✅ NEW: BST/UK local time string (formatted)
     date: {
       type: DataTypes.STRING,
       allowNull: false,
