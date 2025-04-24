@@ -17,6 +17,7 @@
     "jsonwebtoken": "^9.0.2",
     "luxon": "^3.6.1",
     "pdfkit": "^0.17.0",
+    "pdfmake": "^0.2.18",
     "pg": "^8.14.1",
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.7"
