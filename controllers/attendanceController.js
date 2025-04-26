@@ -135,23 +135,29 @@ exports.getStatus = async (req, res) => {
 
     const employees = await Employee.findAll();
 
-    const attendanceRecords = await Attendance.findAll({
+    // Fetch today's records
+    const todayRecords = await Attendance.findAll({
       where: {
         clock_in: { [Op.between]: [start, end] },
       },
       order: [['clock_in', 'DESC']],
     });
 
-    const latestStatus = {};
+    // Fetch any previous unclosed clock-ins
+    const openRecords = await Attendance.findAll({
+      where: {
+        clock_in: { [Op.lt]: start },
+        clock_out: null,
+      },
+      order: [['clock_in', 'DESC']],
+    });
 
-    attendanceRecords.forEach((record) => {
-      // If not already seen this employee today, take the most recent entry
+    const combined = [...todayRecords, ...openRecords];
+
+    const latestStatus = {};
+    combined.forEach((record) => {
       if (!latestStatus[record.employee_id]) {
-        if (record.clock_out) {
-          latestStatus[record.employee_id] = 'Clocked Out';
-        } else {
-          latestStatus[record.employee_id] = 'Clocked In';
-        }
+        latestStatus[record.employee_id] = record.clock_out ? 'Clocked Out' : 'Clocked In';
       }
     });
 
