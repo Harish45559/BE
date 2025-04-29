@@ -14,7 +14,6 @@ const allowedOrigins = [
   'https://fe-2n6s.onrender.com'
 ];
 
-
 // ✅ CORS middleware
 app.use(cors({
   origin: function (origin, callback) {
@@ -39,7 +38,7 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// ✅ Import routes
+// ✅ Import all routes (only once each)
 const authRoutes = require('./routes/authRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
@@ -47,9 +46,9 @@ const reportRoutes = require('./routes/reportRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const menuRoutes = require('./routes/menuRoutes');
-const salesRoutes = require('./routes/salesRoutes');
+const salesRoutes = require('./routes/salesRoutes'); // ✅ only once
 
-// ✅ Register routes
+// ✅ Register all routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
@@ -57,7 +56,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/menu', menuRoutes);
-app.use('/api/sales', salesRoutes);
+app.use('/api/sales', salesRoutes); // ✅ only once
 
 // ✅ Sync DB and Start server
 db.sync({ force: false }).then(async () => {

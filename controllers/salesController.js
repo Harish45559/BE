@@ -1,48 +1,74 @@
-const { Op } = require('sequelize');
-const db = require('../models');
-const { Order, TillStatus } = db;
-const { DateTime } = require('luxon');
+const { Op, fn, col } = require('sequelize');
+const Order = require('../models/Order');
+const MenuItem = require('../models/menuItem');
 
-const toUK = (dateStr) => DateTime.fromISO(dateStr).setZone('Europe/London').toISODate();
 
-exports.openTill = async (req, res) => {
+exports.getSalesSummary = async (req, res) => {
   try {
-    const { employee } = req.body;
-    const today = toUK(DateTime.now().toISO());
-    const exists = await TillStatus.findOne({ where: { date: today } });
+    const { fromDate, toDate } = req.query;
+    const where = {};
 
-    if (exists) return res.status(400).json({ error: 'Till already opened' });
+    if (fromDate && toDate) {
+      where.created_at = {
+        [Op.between]: [new Date(fromDate), new Date(toDate)],
+      };
+    }
 
-    const till = await TillStatus.create({
-      date: today,
-      opened_by: employee,
-      open_time: new Date(),
-      opening_amount: 100
+    const orders = await Order.findAll({ where });
+
+    const totalSales = orders.reduce((sum, order) => sum + order.total_amount, 0);
+    const cashSales = orders.filter(o => o.payment_method === 'Cash').reduce((sum, order) => sum + order.total_amount, 0);
+    const cardSales = orders.filter(o => o.payment_method === 'Card').reduce((sum, order) => sum + order.total_amount, 0);
+
+    res.json({ totalSales, cashSales, cardSales });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error fetching sales summary' });
+  }
+};
+
+exports.getTopSellingItems = async (req, res) => {
+  try {
+    const orders = await Order.findAll();
+
+    const itemCounts = {};
+
+    orders.forEach(order => {
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach(item => {
+          itemCounts[item.name] = (itemCounts[item.name] || 0) + item.quantity;
+        });
+      }
     });
 
-    res.json({ message: 'Till opened', till });
+    const topItems = Object.entries(itemCounts)
+      .map(([name, quantity]) => ({ name, quantity }))
+      .sort((a, b) => b.quantity - a.quantity);
+
+    res.json(topItems);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to open till' });
+    console.error(err);
+    res.status(500).json({ message: 'Error fetching top selling items' });
   }
 };
 
-exports.closeTill = async (req, res) => {
+exports.getTotalSales = async (req, res) => {
   try {
-    const { employee } = req.body;
-    const today = toUK(DateTime.now().toISO());
-    const till = await TillStatus.findOne({ where: { date: today } });
+    const { fromDate, toDate } = req.query;
 
-    if (!till) return res.status(404).json({ error: 'Till not found' });
-    if (till.close_time) return res.status(400).json({ error: 'Till already closed' });
+    const whereCondition = {};
+    if (fromDate && toDate) {
+      whereCondition.created_at = {
+        [Op.between]: [new Date(fromDate), new Date(toDate)],
+      };
+    }
 
-    till.close_time = new Date();
-    till.closed_by = employee;
-    till.closing_amount = 100;
-    await till.save();
+    const orders = await Order.findAll({ where: whereCondition });
 
-    res.json({ message: 'Till closed', till });
+    res.json(orders);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to close till' });
+    console.error(err);
+    res.status(500).json({ message: 'Error fetching total sales orders' });
   }
 };
-
+ 

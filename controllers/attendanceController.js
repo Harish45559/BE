@@ -2,11 +2,10 @@ const { DateTime } = require('luxon');
 const { Op } = require('sequelize');
 const Attendance = require('../models/Attendance');
 const Employee = require('../models/Employee');
-const bcrypt = require('bcryptjs'); // make sure it's at the top
+const bcrypt = require('bcryptjs');
 
-// Utilities
 const getUKTime = () => DateTime.now().setZone('Europe/London');
-const formatBST = (dt) => dt.toFormat('dd/MM/yyyy HH:mm'); // UK string for display
+const formatBST = (dt) => dt.toFormat('dd/MM/yyyy HH:mm');
 const formatDuration = (minutes) => {
   const hrs = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -14,91 +13,92 @@ const formatDuration = (minutes) => {
 };
 
 // ✅ Clock In
-
-
 exports.clockIn = async (req, res) => {
   try {
-    const { employee_id, pin, custom_time } = req.body;
+    const { pin } = req.body;
+    const employee = await Employee.findOne({ where: { pin } });
+    if (!employee) return res.status(404).json({ error: 'Invalid PIN' });
 
-    const employee = await Employee.findByPk(employee_id);
-    if (!employee) {
-      return res.status(404).json({ error: 'Employee not found' });
+    const today = DateTime.now().setZone('Europe/London').toFormat('yyyy-LL-dd');
+    let attendance = await Attendance.findOne({ where: { employee_id: employee.id, date: today } });
+
+    if (!attendance) {
+      attendance = await Attendance.create({
+        employee_id: employee.id,
+        date: today,
+        clock_times: [{ clock_in: DateTime.now().toISO() }]
+      });
+    } else {
+      const clockTimes = attendance.clock_times || [];
+      clockTimes.push({ clock_in: DateTime.now().toISO() });
+      attendance.clock_times = clockTimes;
+      await attendance.save();
     }
 
-    const isValidPin = await bcrypt.compare(pin, employee.pin);
-    if (!isValidPin) {
-      return res.status(401).json({ error: 'Invalid PIN' });
-    }
-
-    const dt = custom_time
-      ? DateTime.fromISO(custom_time).setZone('Europe/London')
-      : getUKTime();
-
-    const attendance = await Attendance.create({
-      employee_id,
-      clock_in: dt.toJSDate(),
-      clock_in_uk: formatBST(dt),
-    });
-
-    res.status(200).json(attendance);
+    return res.json({ message: 'Clock-in recorded', attendance });
   } catch (err) {
-    console.error('Clock In Error:', err);
-    res.status(500).json({ error: 'Clock in failed' });
+    console.error(err);
+    res.status(500).json({ error: 'Clock-in failed' });
   }
 };
 
-
-// ✅ Clock Out
+// Clock Out
 exports.clockOut = async (req, res) => {
   try {
-    const { employee_id, pin, custom_time } = req.body;
+    const { pin } = req.body;
+    const employee = await Employee.findOne({ where: { pin } });
+    if (!employee) return res.status(404).json({ error: 'Invalid PIN' });
 
-    const employee = await Employee.findByPk(employee_id);
-    if (!employee) {
-      return res.status(404).json({ error: 'Employee not found' });
+    const today = DateTime.now().setZone('Europe/London').toFormat('yyyy-LL-dd');
+    const attendance = await Attendance.findOne({ where: { employee_id: employee.id, date: today } });
+
+    if (!attendance) return res.status(404).json({ error: 'No clock-in found for today' });
+
+    const clockTimes = attendance.clock_times || [];
+    const lastSession = clockTimes[clockTimes.length - 1];
+    if (!lastSession || lastSession.clock_out) {
+      return res.status(400).json({ error: 'Already clocked out. Please clock in again first.' });
     }
 
-    const isValidPin = await bcrypt.compare(pin, employee.pin);
-    if (!isValidPin) {
-      return res.status(401).json({ error: 'Invalid PIN' });
-    }
+    lastSession.clock_out = DateTime.now().toISO();
 
-    const attendance = await Attendance.findOne({
-      where: {
-        employee_id,
-        clock_out: null,
-      },
-      order: [['clock_in', 'DESC']],
+    // Calculate work hours and break time
+    let totalWorkMinutes = 0;
+    let firstIn = null;
+    let lastOut = null;
+
+    clockTimes.forEach(session => {
+      if (session.clock_in && session.clock_out) {
+        const clockIn = DateTime.fromISO(session.clock_in);
+        const clockOut = DateTime.fromISO(session.clock_out);
+        totalWorkMinutes += clockOut.diff(clockIn, 'minutes').minutes;
+
+        if (!firstIn || clockIn < firstIn) firstIn = clockIn;
+        if (!lastOut || clockOut > lastOut) lastOut = clockOut;
+      }
     });
 
-    if (!attendance || !attendance.clock_in) {
-      return res.status(404).json({ error: 'Record not found or not clocked in yet' });
-    }
+    let totalSpanMinutes = firstIn && lastOut ? lastOut.diff(firstIn, 'minutes').minutes : 0;
+    let breakMinutes = Math.max(0, totalSpanMinutes - totalWorkMinutes);
 
-    const clockInTime = DateTime.fromJSDate(attendance.clock_in).setZone('Europe/London');
-
-    let clockOutTime = custom_time
-      ? DateTime.fromISO(custom_time).setZone('Europe/London')
-      : getUKTime();
-
-    if (clockOutTime < clockInTime) {
-      clockOutTime = clockOutTime.plus({ days: 1 });
-    }
-
-    const totalMinutes = Math.floor(clockOutTime.diff(clockInTime, 'minutes').minutes);
-
-    attendance.clock_out = clockOutTime.toJSDate();
-    attendance.clock_out_uk = formatBST(clockOutTime);
-    attendance.total_work_hours = formatDuration(totalMinutes);
+    attendance.clock_times = clockTimes;
+    attendance.total_work_hours = minutesToHoursMinutes(totalWorkMinutes);
+    attendance.break_time = minutesToHoursMinutes(breakMinutes);
 
     await attendance.save();
 
-    res.status(200).json(attendance);
+    return res.json({ message: 'Clock-out recorded', attendance });
   } catch (err) {
-    console.error('Clock Out Error:', err);
-    res.status(500).json({ error: 'Clock out failed' });
+    console.error(err);
+    res.status(500).json({ error: 'Clock-out failed' });
   }
 };
+
+function minutesToHoursMinutes(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = Math.floor(minutes % 60);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
 
 // ✅ Get attendance records by date
 exports.getAttendanceByDate = async (req, res) => {
@@ -135,7 +135,6 @@ exports.getStatus = async (req, res) => {
 
     const employees = await Employee.findAll();
 
-    // Fetch today's records
     const todayRecords = await Attendance.findAll({
       where: {
         clock_in: { [Op.between]: [start, end] },
@@ -143,7 +142,6 @@ exports.getStatus = async (req, res) => {
       order: [['clock_in', 'DESC']],
     });
 
-    // Fetch any previous unclosed clock-ins
     const openRecords = await Attendance.findAll({
       where: {
         clock_in: { [Op.lt]: start },

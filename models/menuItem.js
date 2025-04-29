@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
-const Category = require('./Category'); // ✅ Add this line
+const Category = require('./Category'); // ✅
 
 const MenuItem = sequelize.define('MenuItem', {
   name: {
@@ -19,6 +19,10 @@ const MenuItem = sequelize.define('MenuItem', {
   categoryId: {
     type: DataTypes.INTEGER,
     allowNull: false
+  },
+  image_url: {                    // ✅ NEW FIELD
+    type: DataTypes.STRING,
+    allowNull: true               // optional (if you don't have image now)
   }
 }, {
   tableName: 'menu_items',
@@ -27,6 +31,5 @@ const MenuItem = sequelize.define('MenuItem', {
 });
 
 MenuItem.belongsTo(Category, { foreignKey: 'categoryId', as: 'category' });
-
 
 module.exports = MenuItem;
