@@ -1,5 +1,6 @@
 const { Op, fn, col } = require('sequelize');
-const Order = require('../models/Order');
+const { Order } = require('../models');
+
 const MenuItem = require('../models/menuItem');
 
 

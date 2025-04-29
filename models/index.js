@@ -1,24 +1,29 @@
 const sequelize = require('../config/db');
 const { DataTypes } = require('sequelize');
 
-// Models
+// Models (import normally)
 const Admin = require('./Admin');
 const Employee = require('./Employee');
 const Attendance = require('./Attendance');
 const Report = require('./Report');
 const Category = require('./Category');
 const MenuItem = require('./menuItem');
-const Order = require('./Order')(sequelize, DataTypes);
 
-// Relationships
-Employee.hasMany(Attendance, { foreignKey: 'employee_id' }); // ✅ Keep
-Employee.hasMany(Report, { foreignKey: 'employee_id' });     // ✅ Keep
-Report.belongsTo(Employee, { foreignKey: 'employee_id' });   // ✅ Keep
+// ❗ Import Order correctly (because it's a function)
+const OrderModel = require('./Order');
 
-Category.hasMany(MenuItem, { foreignKey: 'categoryId' });    // ✅ Keep
-MenuItem.belongsTo(Category, { foreignKey: 'categoryId' });  // ✅ Keep
+// Initialize Order properly
+const Order = OrderModel(sequelize, DataTypes);
 
+// Define relationships
+Employee.hasMany(Attendance, { foreignKey: 'employee_id' });
+Employee.hasMany(Report, { foreignKey: 'employee_id' });
+Report.belongsTo(Employee, { foreignKey: 'employee_id' });
 
+Category.hasMany(MenuItem, { foreignKey: 'categoryId' });
+MenuItem.belongsTo(Category, { foreignKey: 'categoryId' });
+
+// Export all models properly
 module.exports = {
   sequelize,
   Admin,
@@ -27,5 +32,5 @@ module.exports = {
   Report,
   Category,
   MenuItem,
-  Order,
+  Order // ✅ Correct now
 };
