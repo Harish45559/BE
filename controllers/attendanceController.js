@@ -19,25 +19,27 @@ exports.clockIn = async (req, res) => {
     const employee = await Employee.findOne({ where: { pin } });
     if (!employee) return res.status(404).json({ error: 'Invalid PIN' });
 
-    const today = DateTime.now().setZone('Europe/London').toFormat('yyyy-LL-dd');
-    let attendance = await Attendance.findOne({ where: { employee_id: employee.id, date: today } });
+    const now = DateTime.now().setZone('Europe/London');
+    const today = now.toFormat('yyyy-LL-dd');
+
+    // Check if there's already an attendance record for today
+    let attendance = await Attendance.findOne({
+      where: { employee_id: employee.id, clock_in_uk: { [Op.like]: `${today}%` } }
+    });
 
     if (!attendance) {
       attendance = await Attendance.create({
         employee_id: employee.id,
-        date: today,
-        clock_times: [{ clock_in: DateTime.now().toISO() }]
+        clock_in: now.toUTC().toISO(),
+        clock_in_uk: now.toFormat('dd/MM/yyyy HH:mm'),
       });
     } else {
-      const clockTimes = attendance.clock_times || [];
-      clockTimes.push({ clock_in: DateTime.now().toISO() });
-      attendance.clock_times = clockTimes;
-      await attendance.save();
+      return res.status(400).json({ error: 'Already clocked in today' });
     }
 
     return res.json({ message: 'Clock-in recorded', attendance });
   } catch (err) {
-    console.error(err);
+    console.error('Clock-In Error:', err);  // <-- This line is key
     res.status(500).json({ error: 'Clock-in failed' });
   }
 };
@@ -49,47 +51,33 @@ exports.clockOut = async (req, res) => {
     const employee = await Employee.findOne({ where: { pin } });
     if (!employee) return res.status(404).json({ error: 'Invalid PIN' });
 
-    const today = DateTime.now().setZone('Europe/London').toFormat('yyyy-LL-dd');
-    const attendance = await Attendance.findOne({ where: { employee_id: employee.id, date: today } });
+    const now = DateTime.now().setZone('Europe/London');
+    const today = now.toFormat('yyyy-LL-dd');
 
-    if (!attendance) return res.status(404).json({ error: 'No clock-in found for today' });
-
-    const clockTimes = attendance.clock_times || [];
-    const lastSession = clockTimes[clockTimes.length - 1];
-    if (!lastSession || lastSession.clock_out) {
-      return res.status(400).json({ error: 'Already clocked out. Please clock in again first.' });
-    }
-
-    lastSession.clock_out = DateTime.now().toISO();
-
-    // Calculate work hours and break time
-    let totalWorkMinutes = 0;
-    let firstIn = null;
-    let lastOut = null;
-
-    clockTimes.forEach(session => {
-      if (session.clock_in && session.clock_out) {
-        const clockIn = DateTime.fromISO(session.clock_in);
-        const clockOut = DateTime.fromISO(session.clock_out);
-        totalWorkMinutes += clockOut.diff(clockIn, 'minutes').minutes;
-
-        if (!firstIn || clockIn < firstIn) firstIn = clockIn;
-        if (!lastOut || clockOut > lastOut) lastOut = clockOut;
+    const attendance = await Attendance.findOne({
+      where: {
+        employee_id: employee.id,
+        clock_in_uk: { [Op.like]: `${today}%` },
+        clock_out: null
       }
     });
 
-    let totalSpanMinutes = firstIn && lastOut ? lastOut.diff(firstIn, 'minutes').minutes : 0;
-    let breakMinutes = Math.max(0, totalSpanMinutes - totalWorkMinutes);
+    if (!attendance) {
+      return res.status(404).json({ error: 'No clock-in found or already clocked out' });
+    }
 
-    attendance.clock_times = clockTimes;
-    attendance.total_work_hours = minutesToHoursMinutes(totalWorkMinutes);
-    attendance.break_time = minutesToHoursMinutes(breakMinutes);
+    const clockInTime = DateTime.fromISO(attendance.clock_in);
+    const durationMinutes = now.diff(clockInTime, 'minutes').minutes;
+
+    attendance.clock_out = now.toUTC().toISO();
+    attendance.clock_out_uk = now.toFormat('dd/MM/yyyy HH:mm');
+    attendance.total_work_hours = minutesToHoursMinutes(durationMinutes);
 
     await attendance.save();
 
     return res.json({ message: 'Clock-out recorded', attendance });
   } catch (err) {
-    console.error(err);
+    console.error('Clock-Out Error:', err);
     res.status(500).json({ error: 'Clock-out failed' });
   }
 };
