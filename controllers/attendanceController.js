@@ -52,12 +52,16 @@ exports.clockOut = async (req, res) => {
     if (!employee) return res.status(404).json({ error: 'Invalid PIN' });
 
     const now = DateTime.now().setZone('Europe/London');
-    const today = now.toFormat('yyyy-LL-dd');
 
+    // Use UTC range for accurate date comparison
+    const start = now.startOf('day').toUTC().toISO();
+    const end = now.endOf('day').toUTC().toISO();
+
+    // Find today's active clock-in without clock-out
     const attendance = await Attendance.findOne({
       where: {
         employee_id: employee.id,
-        clock_in_uk: { [Op.like]: `${today}%` },
+        clock_in: { [Op.between]: [start, end] },
         clock_out: null
       }
     });
@@ -87,6 +91,7 @@ function minutesToHoursMinutes(minutes) {
   const m = Math.floor(minutes % 60);
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
+
 
 // ✅ Get attendance records by date
 exports.getAttendanceByDate = async (req, res) => {
