@@ -42,8 +42,9 @@ const Attendance = sequelize.define('Attendance', {
     comment: 'Stored as HH:MM'
   },
   break_minutes: {
-    type: DataTypes.INTEGER,
-    allowNull: true
+    type: DataTypes.INTEGER, // ✅ FIXED
+    allowNull: true,
+    comment: 'Total break time in minutes'
   },
   latitude: {
     type: DataTypes.FLOAT,

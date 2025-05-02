@@ -7,7 +7,7 @@ const { Admin } = require('./models');
 dotenv.config();
 const app = express();
 
-// ✅ FIXED: Allowed origins
+// ✅ Allowed frontend origins
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
@@ -26,7 +26,7 @@ app.use(cors({
   credentials: true
 }));
 
-// ✅ Allow preflight responses
+// ✅ Preflight headers
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -38,7 +38,7 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// ✅ Import all routes (only once each)
+// ✅ Import routes
 const authRoutes = require('./routes/authRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
@@ -46,19 +46,19 @@ const reportRoutes = require('./routes/reportRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const menuRoutes = require('./routes/menuRoutes');
-const salesRoutes = require('./routes/salesRoutes'); // ✅ only once
+const salesRoutes = require('./routes/salesRoutes');
 
-// ✅ Register all routes
+// ✅ Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
-app.use('/api/attendance', attendanceRoutes);
+app.use('/api/attendance', attendanceRoutes); // ✅ Correct usage
 app.use('/api/reports', reportRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/menu', menuRoutes);
-app.use('/api/sales', salesRoutes); // ✅ only once
+app.use('/api/sales', salesRoutes);
 
-// ✅ Sync DB and Start server
+// ✅ Sync DB and start server
 db.sync({ force: false }).then(async () => {
   console.log('✅ PostgreSQL synced');
 

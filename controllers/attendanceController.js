@@ -119,48 +119,26 @@ exports.getAttendanceByDate = async (req, res) => {
 // ✅ Get today's status for all employees
 exports.getStatus = async (req, res) => {
   try {
-    const date = req.query.date
-      ? DateTime.fromISO(req.query.date).setZone('Europe/London')
-      : getUKTime();
+    const { DateTime } = require('luxon');
+    const Attendance = require('../models/Attendance');
 
-    const start = date.startOf('day').toJSDate();
-    const end = date.endOf('day').toJSDate();
+    const today = DateTime.now().setZone('Europe/London').toFormat('yyyy-LL-dd');
 
-    const employees = await Employee.findAll();
+    const records = await Attendance.findAll();
 
-    const todayRecords = await Attendance.findAll({
-      where: {
-        clock_in: { [Op.between]: [start, end] },
-      },
-      order: [['clock_in', 'DESC']],
+    const latestStatusMap = {};
+    records.forEach(record => {
+      latestStatusMap[record.employee_id] = record.clock_out ? 'Clocked Out' : 'Clocked In';
     });
 
-    const openRecords = await Attendance.findAll({
-      where: {
-        clock_in: { [Op.lt]: start },
-        clock_out: null,
-      },
-      order: [['clock_in', 'DESC']],
-    });
-
-    const combined = [...todayRecords, ...openRecords];
-
-    const latestStatus = {};
-    combined.forEach((record) => {
-      if (!latestStatus[record.employee_id]) {
-        latestStatus[record.employee_id] = record.clock_out ? 'Clocked Out' : 'Clocked In';
-      }
-    });
-
-    const result = employees.map((emp) => ({
-      id: emp.id,
-      name: `${emp.first_name} ${emp.last_name}`,
-      status: latestStatus[emp.id] || 'Not Clocked In',
+    const result = Object.entries(latestStatusMap).map(([id, status]) => ({
+      id: parseInt(id),
+      status
     }));
 
-    res.status(200).json(result);
+    res.json(result);
   } catch (err) {
-    console.error('Get status error:', err);
-    res.status(500).json({ error: 'Failed to fetch employee status' });
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch status' });
   }
 };
