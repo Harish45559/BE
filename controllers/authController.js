@@ -14,11 +14,11 @@ exports.login = async (req, res) => {
         return res.status(401).json({ success: false, message: 'User not found' });
       }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-if (!isMatch) {
-  return res.status(401).json({ success: false, message: 'Invalid password' });
-}
-
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'Invalid password' });
+      }
+      
       role = 'admin';
     } else {
       const isMatch = await bcrypt.compare(password, user.password);
