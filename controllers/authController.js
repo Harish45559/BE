@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Employee, Admin } = require('../models');
+
 exports.login = async (req, res) => {
   const { username, password } = req.body;
 
@@ -14,7 +15,9 @@ exports.login = async (req, res) => {
         return res.status(401).json({ success: false, message: 'User not found' });
       }
 
-      if (user.password !== password) {
+      // ✅ FIX: Use bcrypt.compare for admin too
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
         return res.status(401).json({ success: false, message: 'Invalid password' });
       }
 
@@ -32,14 +35,11 @@ exports.login = async (req, res) => {
       { expiresIn: '1d' }
     );
 
-    // ✅ Add this line just before the return
-    console.log('Sending role:', role);
-
     return res.status(200).json({
       success: true,
       token,
       username: user.username,
-      role, // make sure this is present
+      role,
     });
 
   } catch (err) {
@@ -48,10 +48,7 @@ exports.login = async (req, res) => {
   }
 };
 
-
-
-// 🔐 Forgot Password: searches both Admin and Employee tables
-
+// ✅ Secure forgot password handler
 exports.forgotPassword = async (req, res) => {
   const { username, newPassword } = req.body;
 
@@ -62,14 +59,14 @@ exports.forgotPassword = async (req, res) => {
   try {
     let user = await Admin.findOne({ where: { username } });
     if (user) {
-      user.password = newPassword;
+      user.password = await bcrypt.hash(newPassword, 10); // ✅ hash before saving
       await user.save();
       return res.json({ message: 'Admin password updated successfully' });
     }
 
     user = await Employee.findOne({ where: { username } });
     if (user) {
-      user.password = await bcrypt.hash(newPassword, 10); // ✅ hash before saving
+      user.password = await bcrypt.hash(newPassword, 10);
       await user.save();
       return res.json({ message: 'Employee password updated successfully' });
     }
@@ -80,4 +77,3 @@ exports.forgotPassword = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
