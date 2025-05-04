@@ -15,55 +15,77 @@ const formatDuration = (minutes) => {
 // ✅ Clock In
 exports.clockIn = async (req, res) => {
   try {
-    const { pin } = req.body;
-    const employee = await Employee.findOne({ where: { pin } });
-    if (!employee) return res.status(404).json({ error: 'Invalid PIN' });
+    const { pin, employeeId } = req.body;
+
+    const employee = await Employee.findOne({ where: { id: employeeId } });
+    if (!employee) {
+      return res.status(404).json({ error: 'Invalid employee' });
+    }
+
+    console.log("Entered PIN:", pin);
+    console.log("Stored PIN (hashed):", employee.pin);
+
+    const isMatch = bcrypt.compareSync(pin, employee.pin);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
+    
 
     const now = DateTime.now().setZone('Europe/London');
     const today = now.toFormat('yyyy-LL-dd');
 
-    // Check if there's already an attendance record for today
-    let attendance = await Attendance.findOne({
-      where: { employee_id: employee.id, clock_in_uk: { [Op.like]: `${today}%` } }
+    const attendance = await Attendance.findOne({
+      where: {
+        employee_id: employee.id,
+        clock_in_uk: { [Op.like]: `${today}%` }
+      }
     });
 
-    if (!attendance) {
-      attendance = await Attendance.create({
-        employee_id: employee.id,
-        clock_in: now.toUTC().toISO(),
-        clock_in_uk: now.toFormat('dd/MM/yyyy HH:mm'),
-      });
-    } else {
+    if (attendance) {
       return res.status(400).json({ error: 'Already clocked in today' });
     }
 
-    return res.json({ message: 'Clock-in recorded', attendance });
+    const newAttendance = await Attendance.create({
+      employee_id: employee.id,
+      clock_in: now.toUTC().toISO(),
+      clock_in_uk: now.toFormat('dd/MM/yyyy HH:mm'),
+    });
+
+    return res.json({ message: 'Clock-in recorded', attendance: newAttendance });
   } catch (err) {
-    console.error('Clock-In Error:', err);  // <-- This line is key
+    console.error('Clock-In Error:', err);
     res.status(500).json({ error: 'Clock-in failed' });
   }
 };
 
-// Clock Out
+// ✅ Clock Out
 exports.clockOut = async (req, res) => {
   try {
-    const { pin } = req.body;
-    const employee = await Employee.findOne({ where: { pin } });
-    if (!employee) return res.status(404).json({ error: 'Invalid PIN' });
+    const { pin, employeeId } = req.body;
+
+    const employee = await Employee.findOne({ where: { id: employeeId } });
+    if (!employee) {
+      return res.status(404).json({ error: 'Invalid employee' });
+    }
+
+    console.log("Entered PIN:", pin);
+console.log("Stored PIN (hashed):", employee.pin);
+
+
+    const isMatch = bcrypt.compareSync(pin, employee.pin);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
+    
 
     const now = DateTime.now().setZone('Europe/London');
 
-    // Use UTC range for accurate date comparison
-    const start = now.startOf('day').toUTC().toISO();
-    const end = now.endOf('day').toUTC().toISO();
-
-    // Find today's active clock-in without clock-out
     const attendance = await Attendance.findOne({
       where: {
         employee_id: employee.id,
-        clock_in: { [Op.between]: [start, end] },
         clock_out: null
-      }
+      },
+      order: [['clock_in', 'DESC']]
     });
 
     if (!attendance) {
@@ -92,7 +114,6 @@ function minutesToHoursMinutes(minutes) {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
-
 // ✅ Get attendance records by date
 exports.getAttendanceByDate = async (req, res) => {
   try {
@@ -119,9 +140,6 @@ exports.getAttendanceByDate = async (req, res) => {
 // ✅ Get today's status for all employees
 exports.getStatus = async (req, res) => {
   try {
-    const { DateTime } = require('luxon');
-    const Attendance = require('../models/Attendance');
-
     const today = DateTime.now().setZone('Europe/London').toFormat('yyyy-LL-dd');
 
     const records = await Attendance.findAll();
