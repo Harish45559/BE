@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const bcrypt = require('bcryptjs');
 const db = require('./config/db');
 const { Admin } = require('./models');
 
@@ -11,7 +12,7 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
-  'https://fe-2n6s.onrender.com'
+  'https://fe-2n6s.onrender.com' // your deployed frontend
 ];
 
 // ✅ CORS middleware
@@ -36,6 +37,7 @@ app.use((req, res, next) => {
   next();
 });
 
+// ✅ Body parser
 app.use(express.json());
 
 // ✅ Import routes
@@ -51,7 +53,7 @@ const salesRoutes = require('./routes/salesRoutes');
 // ✅ Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
-app.use('/api/attendance', attendanceRoutes); // ✅ Correct usage
+app.use('/api/attendance', attendanceRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -62,15 +64,18 @@ app.use('/api/sales', salesRoutes);
 db.sync({ force: false }).then(async () => {
   console.log('✅ PostgreSQL synced');
 
+  const defaultPassword = 'newSecure123';
+  const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
   const [adminUser, created] = await Admin.findOrCreate({
     where: { username: 'admin' },
-    defaults: { password: 'H@rish45559' }
+    defaults: { password: hashedPassword }
   });
 
   if (!created) {
-    adminUser.password = 'H@rish45559';
+    adminUser.password = hashedPassword;
     await adminUser.save();
-    console.log('🔁 Admin password updated');
+    console.log('🔁 Admin password updated (hashed)');
   } else {
     console.log('✅ Admin user created');
   }
