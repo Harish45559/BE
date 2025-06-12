@@ -37,35 +37,21 @@ exports.getReports = async (req, res) => {
       order: [['clock_in', 'ASC']],
     });
 
-    // Group records by employee + date
-    const grouped = {};
-    records.forEach((rec) => {
-      if (!rec.clock_out) return;
+    const result = records.map((rec, index) => {
+      const clockInUK = toUK(rec.clock_in);
+      const clockOutUK = rec.clock_out ? toUK(rec.clock_out) : null;
 
-      const date = toUK(rec.clock_in).toFormat('yyyy-MM-dd');
-      const key = `${rec.employee_id}_${date}`;
-
-      if (!grouped[key]) {
-        grouped[key] = {
-          employee: rec.employee,
-          date,
-          firstClockIn: toUK(rec.clock_in).toFormat('HH:mm'),
-          total_minutes: 0
-        };
-      }
-
-      const duration = toUK(rec.clock_out).diff(toUK(rec.clock_in), 'minutes').minutes;
-      grouped[key].total_minutes += duration;
+      return {
+        id: rec.id || index + 1,
+        employee: rec.employee,
+        date: clockInUK.toFormat('dd-MM-yyyy'),
+        clock_in_uk: clockInUK.toFormat('HH:mm'),
+        clock_out_uk: clockOutUK ? clockOutUK.toFormat('HH:mm') : '—',
+        total_work_hours: clockOutUK
+          ? minutesToHoursMinutes(clockOutUK.diff(clockInUK, 'minutes').minutes)
+          : '—',
+      };
     });
-
-    const result = Object.values(grouped).map((entry, index) => ({
-      id: index + 1,
-      employee: entry.employee,
-      date: entry.date,
-      clock_in_uk: entry.firstClockIn,
-      clock_out_uk: '-', // optional if needed later
-      total_work_hours: minutesToHoursMinutes(entry.total_minutes),
-    }));
 
     res.json(result);
   } catch (err) {
@@ -73,6 +59,18 @@ exports.getReports = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+
+function toUK(date) {
+  const { DateTime } = require('luxon');
+  return DateTime.fromJSDate(new Date(date)).setZone('Europe/London');
+}
+
+function minutesToHoursMinutes(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = Math.floor(minutes % 60);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
 
 function minutesToHoursMinutes(minutes) {
   const h = Math.floor(minutes / 60);
