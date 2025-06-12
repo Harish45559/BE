@@ -60,10 +60,7 @@ exports.getReports = async (req, res) => {
   }
 };
 
-function toUK(date) {
-  const { DateTime } = require('luxon');
-  return DateTime.fromJSDate(new Date(date)).setZone('Europe/London');
-}
+
 
 function minutesToHoursMinutes(minutes) {
   const h = Math.floor(minutes / 60);
