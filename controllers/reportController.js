@@ -37,7 +37,7 @@ exports.getReports = async (req, res) => {
       order: [['clock_in', 'ASC']],
     });
 
-    // Group by employee and date
+    // Group records by employee + date
     const grouped = {};
     records.forEach((rec) => {
       if (!rec.clock_out) return;
@@ -48,10 +48,9 @@ exports.getReports = async (req, res) => {
       if (!grouped[key]) {
         grouped[key] = {
           employee: rec.employee,
-          date: date,
-          clock_in_uk: toUK(rec.clock_in).toFormat('dd-MM-yyyy'),
-          total_minutes: 0,
-          entries: []
+          date,
+          firstClockIn: toUK(rec.clock_in).toFormat('HH:mm'),
+          total_minutes: 0
         };
       }
 
@@ -63,8 +62,8 @@ exports.getReports = async (req, res) => {
       id: index + 1,
       employee: entry.employee,
       date: entry.date,
-      clock_in_uk: entry.clock_in_uk,
-      clock_out_uk: '-', // Optional: could list latest clock-out
+      clock_in_uk: entry.firstClockIn,
+      clock_out_uk: '-', // optional if needed later
       total_work_hours: minutesToHoursMinutes(entry.total_minutes),
     }));
 
