@@ -68,18 +68,14 @@ exports.clockOut = async (req, res) => {
       return res.status(404).json({ error: 'Invalid employee' });
     }
 
-    console.log("Entered PIN:", pin);
-console.log("Stored PIN (hashed):", employee.pin);
-
-
     const isMatch = bcrypt.compareSync(pin, employee.pin);
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid PIN' });
     }
-    
 
     const now = DateTime.now().setZone('Europe/London');
 
+    // Find the most recent attendance entry that is not clocked out yet
     const attendance = await Attendance.findOne({
       where: {
         employee_id: employee.id,
@@ -92,16 +88,41 @@ console.log("Stored PIN (hashed):", employee.pin);
       return res.status(404).json({ error: 'No clock-in found or already clocked out' });
     }
 
+    // Calculate duration for this clock-in/out
     const clockInTime = DateTime.fromISO(attendance.clock_in);
     const durationMinutes = now.diff(clockInTime, 'minutes').minutes;
 
+    // Save this attendance entry
     attendance.clock_out = now.toUTC().toISO();
     attendance.clock_out_uk = now.toFormat('dd/MM/yyyy HH:mm');
     attendance.total_work_hours = minutesToHoursMinutes(durationMinutes);
-
     await attendance.save();
 
-    return res.json({ message: 'Clock-out recorded', attendance });
+    // Calculate total for today (all completed entries)
+    const today = now.toFormat('yyyy-LL-dd');
+    const allTodayEntries = await Attendance.findAll({
+      where: {
+        employee_id: employee.id,
+        clock_in_uk: { [Op.like]: `${today}%` },
+        clock_out: { [Op.ne]: null } // only completed shifts
+      }
+    });
+
+    let totalMinutes = 0;
+    allTodayEntries.forEach(entry => {
+      const ci = DateTime.fromISO(entry.clock_in);
+      const co = DateTime.fromISO(entry.clock_out);
+      totalMinutes += co.diff(ci, 'minutes').minutes;
+    });
+
+    return res.json({
+      message: 'Clock-out recorded',
+      attendance: {
+        ...attendance.toJSON(),
+        total_work_hours: minutesToHoursMinutes(totalMinutes)
+      }
+    });
+
   } catch (err) {
     console.error('Clock-Out Error:', err);
     res.status(500).json({ error: 'Clock-out failed' });
@@ -113,6 +134,7 @@ function minutesToHoursMinutes(minutes) {
   const m = Math.floor(minutes % 60);
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
+
 
 // ✅ Get attendance records by date
 exports.getAttendanceByDate = async (req, res) => {

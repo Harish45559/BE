@@ -31,25 +31,56 @@ exports.getReports = async (req, res) => {
       if (to) where.clock_in[Op.lte] = new Date(to);
     }
 
-    const reports = await Attendance.findAll({
+    const records = await Attendance.findAll({
       where,
-      include: [{ model: Employee, as: 'employee', attributes: ['id', 'first_name', 'last_name', 'username'] }],
-      order: [['clock_in', 'DESC']],
+      include: [{ model: Employee, as: 'employee', attributes: ['id', 'first_name', 'last_name'] }],
+      order: [['clock_in', 'ASC']],
     });
 
-    const reportsWithHours = reports.map((r) => ({
-      ...r.toJSON(),
-      clock_in_uk: toUK(r.clock_in)?.toFormat('dd-MM-yyyy HH:mm'),
-      clock_out_uk: r.clock_out ? toUK(r.clock_out)?.toFormat('dd-MM-yyyy HH:mm') : '—',
-      total_work_hours: computeTotalHours(r.clock_in, r.clock_out),
+    // Group by employee and date
+    const grouped = {};
+    records.forEach((rec) => {
+      if (!rec.clock_out) return;
+
+      const date = toUK(rec.clock_in).toFormat('yyyy-MM-dd');
+      const key = `${rec.employee_id}_${date}`;
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          employee: rec.employee,
+          date: date,
+          clock_in_uk: toUK(rec.clock_in).toFormat('dd-MM-yyyy'),
+          total_minutes: 0,
+          entries: []
+        };
+      }
+
+      const duration = toUK(rec.clock_out).diff(toUK(rec.clock_in), 'minutes').minutes;
+      grouped[key].total_minutes += duration;
+    });
+
+    const result = Object.values(grouped).map((entry, index) => ({
+      id: index + 1,
+      employee: entry.employee,
+      date: entry.date,
+      clock_in_uk: entry.clock_in_uk,
+      clock_out_uk: '-', // Optional: could list latest clock-out
+      total_work_hours: minutesToHoursMinutes(entry.total_minutes),
     }));
 
-    res.json(reportsWithHours);
+    res.json(result);
   } catch (err) {
     console.error('Fetch Reports Error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 };
+
+function minutesToHoursMinutes(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = Math.floor(minutes % 60);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
 
 exports.deleteAttendance = async (req, res) => {
   try {
