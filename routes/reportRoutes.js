@@ -6,5 +6,7 @@ router.get('/reports', reportController.getReports);
 router.get('/export/csv', reportController.exportCSV);
 router.get('/export/pdf', reportController.exportPDF);
 router.delete('/:id', reportController.deleteAttendance);
+router.get('/summary', reportController.getDailySummary);
+
 
 module.exports = router;

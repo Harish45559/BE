@@ -21,6 +21,87 @@ const computeTotalHours = (clockIn, clockOut) => {
 };
 
 exports.getReports = async (req, res) => {
+  const { employee_id, from, to, summary } = req.query;
+  const where = {};
+  if (employee_id && employee_id !== 'all') where.employee_id = employee_id;
+  if (from || to) {
+    where.clock_in = {};
+    if (from) where.clock_in[Op.gte] = new Date(from);
+    if (to) where.clock_in[Op.lte] = new Date(to);
+  }
+
+  const records = await Attendance.findAll({
+    where,
+    include: [{ model: Employee, as: 'employee', attributes: ['first_name', 'last_name'] }],
+    order: [['clock_in', 'ASC']],
+  });
+
+  if (summary === 'true') {
+    // Summarized view with break time
+    const grouped = {};
+
+    records.forEach((rec) => {
+      if (!rec.clock_out) return;
+
+      const dateKey = toUK(rec.clock_in).toFormat('yyyy-MM-dd');
+      const empId = rec.employee_id;
+      const key = `${empId}_${dateKey}`;
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          employee: rec.employee,
+          date: toUK(rec.clock_in).toFormat('dd-MM-yyyy'),
+          firstIn: toUK(rec.clock_in),
+          lastOut: toUK(rec.clock_out),
+          totalMinutes: 0,
+        };
+      } else {
+        if (toUK(rec.clock_in) < grouped[key].firstIn)
+          grouped[key].firstIn = toUK(rec.clock_in);
+        if (toUK(rec.clock_out) > grouped[key].lastOut)
+          grouped[key].lastOut = toUK(rec.clock_out);
+      }
+
+      grouped[key].totalMinutes += toUK(rec.clock_out).diff(toUK(rec.clock_in), 'minutes').minutes;
+    });
+
+    const summaryResult = Object.values(grouped).map((entry, i) => {
+      const totalSpan = entry.lastOut.diff(entry.firstIn, 'minutes').minutes;
+      const breakTime = Math.max(totalSpan - entry.totalMinutes, 0);
+      return {
+        id: i + 1,
+        employee: entry.employee,
+        date: entry.date,
+        first_clock_in: entry.firstIn.toFormat('HH:mm'),
+        last_clock_out: entry.lastOut.toFormat('HH:mm'),
+        total_work_hours: minutesToHoursMinutes(entry.totalMinutes),
+        break_time: minutesToHoursMinutes(breakTime),
+      };
+    });
+
+    return res.json(summaryResult);
+  }
+
+  // Detailed view
+  const detailed = records.map((rec, i) => {
+    const clockInUK = toUK(rec.clock_in);
+    const clockOutUK = rec.clock_out ? toUK(rec.clock_out) : null;
+    return {
+      id: rec.id || i + 1,
+      employee: rec.employee,
+      date: clockInUK.toFormat('dd-MM-yyyy'),
+      clock_in_uk: clockInUK.toFormat('HH:mm'),
+      clock_out_uk: clockOutUK ? clockOutUK.toFormat('HH:mm') : '—',
+      total_work_hours: clockOutUK
+        ? minutesToHoursMinutes(clockOutUK.diff(clockInUK, 'minutes').minutes)
+        : '—',
+    };
+  });
+
+  res.json(detailed);
+};
+// ✅ DAILY SUMMARY REPORT
+exports.getDailySummary = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
     const where = {};
@@ -37,38 +118,57 @@ exports.getReports = async (req, res) => {
       order: [['clock_in', 'ASC']],
     });
 
-    const result = records.map((rec, index) => {
-      const clockInUK = toUK(rec.clock_in);
-      const clockOutUK = rec.clock_out ? toUK(rec.clock_out) : null;
+    const grouped = {};
+
+    records.forEach((rec) => {
+      if (!rec.clock_out) return;
+
+      const dateKey = toUK(rec.clock_in).toFormat('yyyy-MM-dd');
+      const empId = rec.employee_id;
+      const key = `${empId}_${dateKey}`;
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          employee: rec.employee,
+          date: toUK(rec.clock_in).toFormat('dd-MM-yyyy'),
+          firstIn: toUK(rec.clock_in),
+          lastOut: toUK(rec.clock_out),
+          totalMinutes: 0,
+        };
+      } else {
+        if (toUK(rec.clock_in) < grouped[key].firstIn) {
+          grouped[key].firstIn = toUK(rec.clock_in);
+        }
+        if (toUK(rec.clock_out) > grouped[key].lastOut) {
+          grouped[key].lastOut = toUK(rec.clock_out);
+        }
+      }
+
+      const duration = toUK(rec.clock_out).diff(toUK(rec.clock_in), 'minutes').minutes;
+      grouped[key].totalMinutes += duration;
+    });
+
+    const result = Object.values(grouped).map((entry, index) => {
+      const spanMinutes = entry.lastOut.diff(entry.firstIn, 'minutes').minutes;
+      const breakMinutes = Math.max(spanMinutes - entry.totalMinutes, 0);
 
       return {
-        id: rec.id || index + 1,
-        employee: rec.employee,
-        date: clockInUK.toFormat('dd-MM-yyyy'),
-        clock_in_uk: clockInUK.toFormat('HH:mm'),
-        clock_out_uk: clockOutUK ? clockOutUK.toFormat('HH:mm') : '—',
-        total_work_hours: clockOutUK
-          ? minutesToHoursMinutes(clockOutUK.diff(clockInUK, 'minutes').minutes)
-          : '—',
+        id: index + 1,
+        employee: entry.employee,
+        date: entry.date,
+        first_clock_in: entry.firstIn.toFormat('HH:mm'),
+        last_clock_out: entry.lastOut.toFormat('HH:mm'),
+        total_work_hours: minutesToHoursMinutes(entry.totalMinutes),
+        break_time: minutesToHoursMinutes(breakMinutes),
       };
     });
 
     res.json(result);
   } catch (err) {
-    console.error('Fetch Reports Error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Fetch Summary Error:', err);
+    res.status(500).json({ error: 'Summary failed' });
   }
 };
-
-
-
-function minutesToHoursMinutes(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = Math.floor(minutes % 60);
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-}
-
-
 
 exports.deleteAttendance = async (req, res) => {
   try {
