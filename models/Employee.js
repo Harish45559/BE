@@ -41,4 +41,9 @@ Employee.beforeUpdate(async (emp) => {
   }
 });
 
+
+
+
 module.exports = Employee;
+
+
