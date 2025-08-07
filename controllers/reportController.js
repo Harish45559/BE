@@ -4,10 +4,17 @@ const { Parser } = require('json2csv');
 const PdfPrinter = require('pdfmake');
 const { DateTime } = require('luxon');
 
-// UK time conversion
+// UK time converter
 const toUK = (date) => {
   if (!date) return null;
   return DateTime.fromJSDate(new Date(date)).setZone('Europe/London');
+};
+
+const minutesToHoursMinutes = (minutes) => {
+  if (!minutes || isNaN(minutes)) return '—';
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  return `${hrs}h ${mins}m`;
 };
 
 const computeTotalHours = (clockIn, clockOut) => {
@@ -20,16 +27,21 @@ const computeTotalHours = (clockIn, clockOut) => {
   return `${hours}h ${minutes}m`;
 };
 
+<<<<<<< HEAD
 function minutesToHoursMinutes(minutes) {
   const h = Math.floor(minutes / 60);
   const m = Math.floor(minutes % 60);
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
+=======
+// ✅ Reports
+>>>>>>> be-deploy-june13
 exports.getReports = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
     const where = {};
+
     if (employee_id && employee_id !== 'all') where.employee_id = employee_id;
     if (from || to) {
       where.clock_in = {};
@@ -39,38 +51,58 @@ exports.getReports = async (req, res) => {
 
     const records = await Attendance.findAll({
       where,
-      include: [{ model: Employee, as: 'employee', attributes: ['id', 'first_name', 'last_name'] }],
+      include: [{
+        model: Employee,
+        as: 'employee',
+        attributes: ['id', 'first_name', 'last_name'],
+        required: false,
+      }],
       order: [['clock_in', 'ASC']],
     });
 
     const result = records.map((rec, index) => {
-      const clockInUK = toUK(rec.clock_in);
-      const clockOutUK = rec.clock_out ? toUK(rec.clock_out) : null;
+      try {
+        if (!rec.clock_in || !rec.employee) {
+          console.warn(`Skipping record ID ${rec.id} due to missing clock_in or employee.`);
+          return null;
+        }
 
-      return {
-        id: rec.id || index + 1,
-        employee: rec.employee,
-        date: clockInUK.toFormat('dd-MM-yyyy'),
-        clock_in_uk: clockInUK.toFormat('HH:mm'),
-        clock_out_uk: clockOutUK ? clockOutUK.toFormat('HH:mm') : '—',
-        total_work_hours: clockOutUK
-          ? minutesToHoursMinutes(clockOutUK.diff(clockInUK, 'minutes').minutes)
-          : '—',
-      };
-    });
+        const clockInUK = toUK(rec.clock_in);
+        const clockOutUK = rec.clock_out ? toUK(rec.clock_out) : null;
+
+        return {
+          id: rec.id || index + 1,
+          employee: rec.employee,
+          date: clockInUK.toFormat('dd-MM-yyyy'),
+          clock_in_uk: clockInUK.toFormat('HH:mm'),
+          clock_out_uk: clockOutUK ? clockOutUK.toFormat('HH:mm') : '—',
+          total_work_hours: clockOutUK
+            ? minutesToHoursMinutes(clockOutUK.diff(clockInUK, 'minutes').minutes)
+            : '—',
+        };
+      } catch (err) {
+        console.error(`❌ Error processing record ${rec.id}: ${err.message}`);
+        return null;
+      }
+    }).filter(Boolean);
 
     res.json(result);
   } catch (err) {
-    console.error('Fetch Reports Error:', err);
+    console.error('❌ Fetch Reports Error:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 };
 
+<<<<<<< HEAD
 // ✅ DAILY SUMMARY REPORT
+=======
+// ✅ Daily Summary
+>>>>>>> be-deploy-june13
 exports.getDailySummary = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
     const where = {};
+
     if (employee_id && employee_id !== 'all') where.employee_id = employee_id;
     if (from || to) {
       where.clock_in = {};
@@ -88,7 +120,12 @@ exports.getDailySummary = async (req, res) => {
 
     const records = await Attendance.findAll({
       where,
-      include: [{ model: Employee, as: 'employee', attributes: ['id', 'first_name', 'last_name'] }],
+      include: [{
+        model: Employee,
+        as: 'employee',
+        attributes: ['id', 'first_name', 'last_name'],
+        required: false,
+      }],
       order: [['clock_in', 'ASC']],
     });
 
@@ -97,11 +134,11 @@ exports.getDailySummary = async (req, res) => {
     const grouped = {};
 
     records.forEach((rec) => {
-      if (!rec.clock_out) return;
+      if (!rec.clock_out || !rec.clock_in || !rec.employee) return;
 
       const dateKey = toUK(rec.clock_in).toFormat('yyyy-MM-dd');
       const empId = rec.employee_id;
-      const key = `${empId}_${dateKey}`;
+      const key = `${empId}_${toUK(rec.clock_in).toFormat('dd-MM-yyyy')}`;
 
       if (!grouped[key]) {
         grouped[key] = {
@@ -113,12 +150,10 @@ exports.getDailySummary = async (req, res) => {
           sessions: [], // Add sessions array to track individual clock-in/out pairs
         };
       } else {
-        if (toUK(rec.clock_in) < grouped[key].firstIn) {
+        if (toUK(rec.clock_in) < grouped[key].firstIn)
           grouped[key].firstIn = toUK(rec.clock_in);
-        }
-        if (toUK(rec.clock_out) > grouped[key].lastOut) {
+        if (toUK(rec.clock_out) > grouped[key].lastOut)
           grouped[key].lastOut = toUK(rec.clock_out);
-        }
       }
 
       const duration = toUK(rec.clock_out).diff(toUK(rec.clock_in), 'minutes').minutes;
@@ -150,11 +185,12 @@ exports.getDailySummary = async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error('Fetch Summary Error:', err);
+    console.error('Summary fetch error:', err.message);
     res.status(500).json({ error: 'Summary failed' });
   }
 };
 
+<<<<<<< HEAD
 // ✅ NEW ENDPOINT: Get detailed sessions for tooltip// ✅ FIXED: Get detailed sessions for tooltip
 exports.getDetailedSessions = async (req, res) => {
   try {
@@ -248,6 +284,12 @@ exports.getDetailedSessions = async (req, res) => {
   }
 };
 
+=======
+// Other functions (delete, exportPDF, exportCSV) – no changes needed unless you want those too
+
+
+// ✅ DELETE /reports/:id
+>>>>>>> be-deploy-june13
 exports.deleteAttendance = async (req, res) => {
   try {
     const attendance = await Attendance.findByPk(req.params.id);
@@ -259,6 +301,7 @@ exports.deleteAttendance = async (req, res) => {
   }
 };
 
+// ✅ GET /reports/export/csv
 exports.exportCSV = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
@@ -272,12 +315,17 @@ exports.exportCSV = async (req, res) => {
 
     const reports = await Attendance.findAll({
       where,
+<<<<<<< HEAD
       include: [{
         model: Employee,
         as: 'employee',
         attributes: ['first_name', 'last_name']
       }],
       order: [['clock_in', 'DESC']]
+=======
+      include: [{ model: Employee, as: 'employee', attributes: ['first_name', 'last_name'] }],
+      order: [['clock_in', 'DESC']],
+>>>>>>> be-deploy-june13
     });
 
     const data = reports.map((r) => ({
@@ -287,8 +335,12 @@ exports.exportCSV = async (req, res) => {
       'Total Hours': computeTotalHours(r.clock_in, r.clock_out),
     }));
 
+<<<<<<< HEAD
     const fields = ['Employee', 'Clock In', 'Clock Out', 'Total Hours'];
     const parser = new Parser({ fields, withBOM: true });
+=======
+    const parser = new Parser({ fields: ['Employee', 'Clock In', 'Clock Out', 'Total Hours'], withBOM: true });
+>>>>>>> be-deploy-june13
     const csv = parser.parse(data);
 
     res.header('Content-Type', 'text/csv; charset=utf-8');
@@ -302,7 +354,11 @@ exports.exportCSV = async (req, res) => {
   }
 };
 
+<<<<<<< HEAD
 // ✅ PDF EXPORT (Styled Table)
+=======
+// ✅ GET /reports/export/pdf
+>>>>>>> be-deploy-june13
 exports.exportPDF = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
@@ -316,12 +372,17 @@ exports.exportPDF = async (req, res) => {
 
     const reports = await Attendance.findAll({
       where,
+<<<<<<< HEAD
       include: [{
         model: Employee,
         as: 'employee',
         attributes: ['first_name', 'last_name']
       }],
       order: [['clock_in', 'DESC']]
+=======
+      include: [{ model: Employee, as: 'employee', attributes: ['first_name', 'last_name'] }],
+      order: [['clock_in', 'DESC']],
+>>>>>>> be-deploy-june13
     });
 
     const fonts = {
@@ -400,4 +461,8 @@ exports.exportPDF = async (req, res) => {
       res.status(500).json({ error: 'Failed to generate PDF' });
     }
   }
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> be-deploy-june13

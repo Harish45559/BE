@@ -160,13 +160,25 @@ exports.getAttendanceByDate = async (req, res) => {
 // ✅ Get today's status for all employees
 exports.getStatus = async (req, res) => {
   try {
-    const today = DateTime.now().setZone('Europe/London').toFormat('yyyy-LL-dd');
+    const today = DateTime.now().setZone('Europe/London').toFormat('dd/MM/yyyy');
+    console.log('🔍 Today (BST format):', today);
 
-    const records = await Attendance.findAll();
+    const records = await Attendance.findAll({
+      where: {
+        clock_in_uk: {
+          [Op.like]: `${today}%`
+        }
+      },
+      attributes: ['employee_id', 'clock_out'],
+    });
+
+    console.log('📦 Raw Attendance Records:', records);
 
     const latestStatusMap = {};
     records.forEach(record => {
-      latestStatusMap[record.employee_id] = record.clock_out ? 'Clocked Out' : 'Clocked In';
+      if (record && record.employee_id != null) {
+        latestStatusMap[record.employee_id] = record.clock_out ? 'Clocked Out' : 'Clocked In';
+      }
     });
 
     const result = Object.entries(latestStatusMap).map(([id, status]) => ({
@@ -174,9 +186,12 @@ exports.getStatus = async (req, res) => {
       status
     }));
 
+    console.log('✅ Final Result to Send:', result);
+
     res.json(result);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to fetch status' });
+    console.error('🔴 Attendance Status Error:', err.message);
+    console.error(err.stack);
+    res.status(500).json({ error: 'Failed to fetch status', details: err.message });
   }
 };

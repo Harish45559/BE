@@ -6,29 +6,39 @@ exports.login = async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    let user = await Employee.findOne({ where: { username } });
-    let role = 'employee';
+    let user = null;
+    let role = null;
 
-    if (!user) {
-      user = await Admin.findOne({ where: { username } });
-      if (!user) {
-        return res.status(401).json({ success: false, message: 'User not found' });
-      }
-
-      // ✅ FIX: Use bcrypt.compare for admin too
-      const isMatch = await bcrypt.compare(password, user.password);
+    // 🔍 First try Admin
+    const admin = await Admin.findOne({ where: { username } });
+    if (admin) {
+      const isMatch = await bcrypt.compare(password, admin.password);
       if (!isMatch) {
         return res.status(401).json({ success: false, message: 'Invalid password' });
       }
 
+      user = admin;
       role = 'admin';
     } else {
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(401).json({ success: false, message: 'Invalid password' });
+      // 🔍 Then try Employee
+      const employee = await Employee.findOne({ where: { username } });
+      if (employee) {
+        const isMatch = await bcrypt.compare(password, employee.password);
+        if (!isMatch) {
+          return res.status(401).json({ success: false, message: 'Invalid password' });
+        }
+
+        user = employee;
+        role = 'employee';
       }
     }
 
+    // ❌ If neither found
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'User not found' });
+    }
+
+    // ✅ Generate JWT
     const token = jwt.sign(
       { id: user.id, username: user.username },
       'your_jwt_secret',
@@ -59,7 +69,7 @@ exports.forgotPassword = async (req, res) => {
   try {
     let user = await Admin.findOne({ where: { username } });
     if (user) {
-      user.password = await bcrypt.hash(newPassword, 10); // ✅ hash before saving
+      user.password = await bcrypt.hash(newPassword, 10);
       await user.save();
       return res.json({ message: 'Admin password updated successfully' });
     }
