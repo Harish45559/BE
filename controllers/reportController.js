@@ -28,11 +28,18 @@ const computeTotalHours = (clockIn, clockOut) => {
 };
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> f4046248370844cab51e737fdaa6cfe9c56efd87
 function minutesToHoursMinutes(minutes) {
   const h = Math.floor(minutes / 60);
   const m = Math.floor(minutes % 60);
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> f4046248370844cab51e737fdaa6cfe9c56efd87
 
 =======
 // ✅ Reports
@@ -94,6 +101,10 @@ exports.getReports = async (req, res) => {
 };
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+
+>>>>>>> f4046248370844cab51e737fdaa6cfe9c56efd87
 // ✅ DAILY SUMMARY REPORT
 =======
 // ✅ Daily Summary
