@@ -3,9 +3,9 @@ const { Op } = require('sequelize');
 const Attendance = require('../models/Attendance');
 const Employee = require('../models/Employee');
 const bcrypt = require('bcryptjs');
-
 const getUKTime = () => DateTime.now().setZone('Europe/London');
 const formatBST = (dt) => dt.toFormat('dd/MM/yyyy HH:mm');
+
 const formatDuration = (minutes) => {
   const hrs = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -22,29 +22,26 @@ exports.clockIn = async (req, res) => {
       return res.status(404).json({ error: 'Invalid employee' });
     }
 
-    console.log("Entered PIN:", pin);
-    console.log("Stored PIN (hashed):", employee.pin);
-
     const isMatch = bcrypt.compareSync(pin, employee.pin);
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid PIN' });
     }
-    
 
     const now = DateTime.now().setZone('Europe/London');
-    const today = now.toFormat('yyyy-LL-dd');
 
-    const attendance = await Attendance.findOne({
+    // ✅ NEW: Only prevent clock-in if an open session exists
+    const openAttendance = await Attendance.findOne({
       where: {
         employee_id: employee.id,
-        clock_in_uk: { [Op.like]: `${today}%` }
+        clock_out: null
       }
     });
 
-    if (attendance) {
-      return res.status(400).json({ error: 'Already clocked in today' });
+    if (openAttendance) {
+      return res.status(400).json({ error: 'Already clocked in (open session exists)' });
     }
 
+    // ✅ Allow new clock-in (even if it's the same day)
     const newAttendance = await Attendance.create({
       employee_id: employee.id,
       clock_in: now.toUTC().toISO(),
@@ -57,6 +54,7 @@ exports.clockIn = async (req, res) => {
     res.status(500).json({ error: 'Clock-in failed' });
   }
 };
+
 
 // ✅ Clock Out
 exports.clockOut = async (req, res) => {
