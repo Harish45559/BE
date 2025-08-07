@@ -81,6 +81,11 @@ db.sync({ force: false }).then(async () => {
   }
 
   const PORT = process.env.PORT || 5000;
+
+  app.get('/api/reports/test', (req, res) => {
+  res.send('✅ Direct reports test route reached.');
+});
+
   app.listen(PORT, () => {
     console.log(`🚀 Backend live at: https://be-i5z1.onrender.com`);
   });

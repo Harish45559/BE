@@ -26,6 +26,7 @@ function minutesToHoursMinutes(minutes) {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
+
 exports.getReports = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
@@ -33,8 +34,8 @@ exports.getReports = async (req, res) => {
     if (employee_id && employee_id !== 'all') where.employee_id = employee_id;
     if (from || to) {
       where.clock_in = {};
-      if (from) where.clock_in[Op.gte] = new Date(from);
-      if (to) where.clock_in[Op.lte] = new Date(to);
+      if (from && !isNaN(new Date(from))) where.clock_in[Op.gte] = new Date(from);
+      if (to && !isNaN(new Date(to))) where.clock_in[Op.lte] = new Date(to);
     }
 
     const records = await Attendance.findAll({
@@ -61,10 +62,11 @@ exports.getReports = async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error('Fetch Reports Error:', err);
+    console.error('Fetch Reports Error:', err.message, err.stack);
     res.status(500).json({ error: 'Server error' });
   }
 };
+
 
 // ✅ DAILY SUMMARY REPORT
 exports.getDailySummary = async (req, res) => {
