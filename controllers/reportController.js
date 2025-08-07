@@ -27,23 +27,7 @@ const computeTotalHours = (clockIn, clockOut) => {
   return `${hours}h ${minutes}m`;
 };
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> f4046248370844cab51e737fdaa6cfe9c56efd87
-function minutesToHoursMinutes(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = Math.floor(minutes % 60);
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-}
-<<<<<<< HEAD
-=======
-
->>>>>>> f4046248370844cab51e737fdaa6cfe9c56efd87
-
-=======
 // ✅ Reports
->>>>>>> be-deploy-june13
 exports.getReports = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
@@ -100,15 +84,7 @@ exports.getReports = async (req, res) => {
   }
 };
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-
->>>>>>> f4046248370844cab51e737fdaa6cfe9c56efd87
-// ✅ DAILY SUMMARY REPORT
-=======
 // ✅ Daily Summary
->>>>>>> be-deploy-june13
 exports.getDailySummary = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
@@ -117,12 +93,10 @@ exports.getDailySummary = async (req, res) => {
     if (employee_id && employee_id !== 'all') where.employee_id = employee_id;
     if (from || to) {
       where.clock_in = {};
-
       if (from) {
         const ukStart = DateTime.fromISO(from).setZone('Europe/London').startOf('day').toUTC().toJSDate();
         where.clock_in[Op.gte] = ukStart;
       }
-
       if (to) {
         const ukEnd = DateTime.fromISO(to).setZone('Europe/London').endOf('day').toUTC().toJSDate();
         where.clock_in[Op.lte] = ukEnd;
@@ -140,8 +114,6 @@ exports.getDailySummary = async (req, res) => {
       order: [['clock_in', 'ASC']],
     });
 
-    console.log('Total matching records:', records.length);
-
     const grouped = {};
 
     records.forEach((rec) => {
@@ -158,7 +130,7 @@ exports.getDailySummary = async (req, res) => {
           firstIn: toUK(rec.clock_in),
           lastOut: toUK(rec.clock_out),
           totalMinutes: 0,
-          sessions: [], // Add sessions array to track individual clock-in/out pairs
+          sessions: [],
         };
       } else {
         if (toUK(rec.clock_in) < grouped[key].firstIn)
@@ -169,8 +141,7 @@ exports.getDailySummary = async (req, res) => {
 
       const duration = toUK(rec.clock_out).diff(toUK(rec.clock_in), 'minutes').minutes;
       grouped[key].totalMinutes += duration;
-      
-      // Add session details
+
       grouped[key].sessions.push({
         clock_in: toUK(rec.clock_in).toFormat('HH:mm'),
         clock_out: toUK(rec.clock_out).toFormat('HH:mm'),
@@ -190,7 +161,7 @@ exports.getDailySummary = async (req, res) => {
         last_clock_out: entry.lastOut.toFormat('HH:mm'),
         total_work_hours: minutesToHoursMinutes(entry.totalMinutes),
         break_time: minutesToHoursMinutes(breakMinutes),
-        sessions: entry.sessions, // Include sessions in response
+        sessions: entry.sessions,
       };
     });
 
@@ -201,80 +172,56 @@ exports.getDailySummary = async (req, res) => {
   }
 };
 
-<<<<<<< HEAD
-// ✅ NEW ENDPOINT: Get detailed sessions for tooltip// ✅ FIXED: Get detailed sessions for tooltip
+// ✅ Get Detailed Sessions
 exports.getDetailedSessions = async (req, res) => {
   try {
     const { employee_id, date } = req.query;
-    
+
     if (!employee_id || !date) {
       return res.status(400).json({ error: 'employee_id and date are required' });
     }
 
-    // Convert date from YYYY-MM-DD to proper date range
     const startDate = DateTime.fromISO(date).setZone('Europe/London').startOf('day').toUTC().toJSDate();
     const endDate = DateTime.fromISO(date).setZone('Europe/London').endOf('day').toUTC().toJSDate();
 
     const records = await Attendance.findAll({
       where: {
-        employee_id: employee_id,
-        clock_in: {
-          [Op.gte]: startDate,
-          [Op.lte]: endDate
-        }
+        employee_id,
+        clock_in: { [Op.gte]: startDate, [Op.lte]: endDate },
       },
       include: [{ model: Employee, as: 'employee', attributes: ['id', 'first_name', 'last_name'] }],
       order: [['clock_in', 'ASC']],
     });
 
-    // If no records, return empty
-    if (!records || records.length === 0) {
-      return res.json({ sessions: [], total_sessions: 0 });
-    }
-
-    // Only include completed sessions (both clock_in and clock_out)
     const completedSessions = records.filter(rec => rec.clock_out);
-    
-    if (completedSessions.length === 0) {
-      return res.json({ sessions: [], total_sessions: 0 });
-    }
 
-    // Create session objects with proper time conversion
     const sessions = completedSessions.map(rec => {
       const clockInUK = toUK(rec.clock_in);
       const clockOutUK = toUK(rec.clock_out);
       const duration = clockOutUK.diff(clockInUK, 'minutes').minutes;
-      
+
       return {
         type: 'work',
         clock_in: clockInUK.toFormat('HH:mm'),
         clock_out: clockOutUK.toFormat('HH:mm'),
         duration: minutesToHoursMinutes(duration),
-        clock_in_full: clockInUK, // Keep full DateTime for break calculation
+        clock_in_full: clockInUK,
         clock_out_full: clockOutUK
       };
     });
 
-    // Calculate breaks between sessions
     const sessionsWithBreaks = [];
-    
+
     for (let i = 0; i < sessions.length; i++) {
-      // Add the work session
       sessionsWithBreaks.push({
         type: 'work',
         clock_in: sessions[i].clock_in,
         clock_out: sessions[i].clock_out,
         duration: sessions[i].duration
       });
-      
-      // Calculate break time to next session (if exists)
+
       if (i < sessions.length - 1) {
-        const currentEnd = sessions[i].clock_out_full;
-        const nextStart = sessions[i + 1].clock_in_full;
-        
-        const breakMinutes = nextStart.diff(currentEnd, 'minutes').minutes;
-        
-        // Only add break if it's positive (shouldn't be negative, but safety check)
+        const breakMinutes = sessions[i + 1].clock_in_full.diff(sessions[i].clock_out_full, 'minutes').minutes;
         if (breakMinutes > 0) {
           sessionsWithBreaks.push({
             type: 'break',
@@ -285,22 +232,14 @@ exports.getDetailedSessions = async (req, res) => {
       }
     }
 
-    res.json({
-      sessions: sessionsWithBreaks,
-      total_sessions: sessions.length
-    });
+    res.json({ sessions: sessionsWithBreaks, total_sessions: sessions.length });
   } catch (err) {
     console.error('Detailed Sessions Error:', err);
     res.status(500).json({ error: 'Failed to fetch detailed sessions' });
   }
 };
 
-=======
-// Other functions (delete, exportPDF, exportCSV) – no changes needed unless you want those too
-
-
-// ✅ DELETE /reports/:id
->>>>>>> be-deploy-june13
+// ✅ DELETE Attendance
 exports.deleteAttendance = async (req, res) => {
   try {
     const attendance = await Attendance.findByPk(req.params.id);
@@ -312,7 +251,7 @@ exports.deleteAttendance = async (req, res) => {
   }
 };
 
-// ✅ GET /reports/export/csv
+// ✅ Export CSV
 exports.exportCSV = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
@@ -326,17 +265,8 @@ exports.exportCSV = async (req, res) => {
 
     const reports = await Attendance.findAll({
       where,
-<<<<<<< HEAD
-      include: [{
-        model: Employee,
-        as: 'employee',
-        attributes: ['first_name', 'last_name']
-      }],
-      order: [['clock_in', 'DESC']]
-=======
       include: [{ model: Employee, as: 'employee', attributes: ['first_name', 'last_name'] }],
-      order: [['clock_in', 'DESC']],
->>>>>>> be-deploy-june13
+      order: [['clock_in', 'DESC']]
     });
 
     const data = reports.map((r) => ({
@@ -346,12 +276,7 @@ exports.exportCSV = async (req, res) => {
       'Total Hours': computeTotalHours(r.clock_in, r.clock_out),
     }));
 
-<<<<<<< HEAD
-    const fields = ['Employee', 'Clock In', 'Clock Out', 'Total Hours'];
-    const parser = new Parser({ fields, withBOM: true });
-=======
     const parser = new Parser({ fields: ['Employee', 'Clock In', 'Clock Out', 'Total Hours'], withBOM: true });
->>>>>>> be-deploy-june13
     const csv = parser.parse(data);
 
     res.header('Content-Type', 'text/csv; charset=utf-8');
@@ -365,11 +290,7 @@ exports.exportCSV = async (req, res) => {
   }
 };
 
-<<<<<<< HEAD
-// ✅ PDF EXPORT (Styled Table)
-=======
-// ✅ GET /reports/export/pdf
->>>>>>> be-deploy-june13
+// ✅ Export PDF
 exports.exportPDF = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
@@ -383,17 +304,8 @@ exports.exportPDF = async (req, res) => {
 
     const reports = await Attendance.findAll({
       where,
-<<<<<<< HEAD
-      include: [{
-        model: Employee,
-        as: 'employee',
-        attributes: ['first_name', 'last_name']
-      }],
-      order: [['clock_in', 'DESC']]
-=======
       include: [{ model: Employee, as: 'employee', attributes: ['first_name', 'last_name'] }],
       order: [['clock_in', 'DESC']],
->>>>>>> be-deploy-june13
     });
 
     const fonts = {
@@ -472,8 +384,4 @@ exports.exportPDF = async (req, res) => {
       res.status(500).json({ error: 'Failed to generate PDF' });
     }
   }
-<<<<<<< HEAD
 };
-=======
-};
->>>>>>> be-deploy-june13
