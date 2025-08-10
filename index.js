@@ -4,7 +4,8 @@ const dotenv = require('dotenv');
 const bcrypt = require('bcryptjs');
 const db = require('./config/db');
 const { Admin } = require('./models');
-const path = require('path')
+const path = require('path');
+const fs = require('fs');
 
 dotenv.config();
 const app = express();
@@ -16,27 +17,23 @@ const allowedOrigins = [
   'https://fe-2n6s.onrender.com' // your deployed frontend
 ];
 
-// ✅ CORS middleware
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
+// ✅ CORS (handles preflight + headers correctly)
+const corsOptions = {
+  origin(origin, cb) {
+    // allow same-origin / server-to-server (no Origin) and the whitelisted fronts
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
   },
-  credentials: true
-}));
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
+  optionsSuccessStatus: 204
+};
 
-// ✅ Preflight headers
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  if (req.method === 'OPTIONS') return res.sendStatus(200);
-  next();
-});
+// must be BEFORE routes
+app.use(cors(corsOptions));
+// respond to preflight for all routes
+app.options('*', cors(corsOptions));
 
 // ✅ Body parser
 app.use(express.json());
@@ -60,12 +57,15 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/sales', salesRoutes);
-app.use(express.static(path.join(__dirname, 'client', 'dist')));
 
-
-app.get(/^\/(?!api).*/, (req, res) => {
-  res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
-});
+// ✅ Serve React build only if it exists (for single-repo deploys)
+const distPath = path.join(__dirname, 'client', 'dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get(/^\/(?!api).*/, (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 // ✅ Sync DB and start server
 db.sync({ force: false }).then(async () => {
@@ -89,9 +89,10 @@ db.sync({ force: false }).then(async () => {
 
   const PORT = process.env.PORT || 5000;
 
+  // simple health/test route
   app.get('/api/reports/test', (req, res) => {
-  res.send('✅ Direct reports test route reached.');
-});
+    res.send('✅ Direct reports test route reached.');
+  });
 
   app.listen(PORT, () => {
     console.log(`🚀 Backend live at: https://be-i5z1.onrender.com`);
