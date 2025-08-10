@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const bcrypt = require('bcryptjs');
 const db = require('./config/db');
 const { Admin } = require('./models');
+const path = require('path')
 
 dotenv.config();
 const app = express();
@@ -59,6 +60,12 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/sales', salesRoutes);
+app.use(express.static(path.join(__dirname, 'client', 'dist')));
+
+
+app.get(/^\/(?!api).*/, (req, res) => {
+  res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
+});
 
 // ✅ Sync DB and start server
 db.sync({ force: false }).then(async () => {
