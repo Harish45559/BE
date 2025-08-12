@@ -1,10 +1,13 @@
+// server/routes/menuRoutes.js
 const express = require('express');
 const router = express.Router();
 const menu = require('../controllers/menuController');
 
-router.get('/menu', menu.getAllMenuItems);
-router.post('/menu', menu.createMenuItem);
-router.put('/menu/:id', menu.updateMenuItem);
-router.delete('/menu/:id', menu.deleteMenuItem);
+// IMPORTANT: index.js mounts as app.use('/api/menu', menuRoutes)
+// So define routes RELATIVE to that mount: '/', '/:id', etc.
+router.get('/', menu.getAllMenuItems);
+router.post('/', menu.createMenuItem);
+router.put('/:id', menu.updateMenuItem);
+router.delete('/:id', menu.deleteMenuItem);
 
 module.exports = router;
