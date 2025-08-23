@@ -1,69 +1,51 @@
-// controllers/attendanceController.js
-const { DateTime, Duration } = require('luxon');
+const { DateTime } = require('luxon');
 const { Op } = require('sequelize');
 const Attendance = require('../models/Attendance');
 const Employee = require('../models/Employee');
 const bcrypt = require('bcryptjs');
+const getUKTime = () => DateTime.now().setZone('Europe/London');
+const formatBST = (dt) => dt.toFormat('dd/MM/yyyy HH:mm');
 
-// Business timezone for “split at midnight”
-const BUSINESS_TZ = 'Europe/London';
-const nowInTZ = () => DateTime.now().setZone(BUSINESS_TZ);
-
-const minutesToHHMM = (minutes) => {
-  const h = Math.floor(minutes / 60);
-  const m = Math.floor(minutes % 60);
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+const formatDuration = (minutes) => {
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 };
 
-// Split a [clock_in, clock_out] interval into day buckets at midnight (00:00) in BUSINESS_TZ
-function splitByMidnight(clockInISO, clockOutISO, zone = BUSINESS_TZ) {
-  if (!clockInISO || !clockOutISO) return [];
-  let start = DateTime.fromISO(clockInISO).setZone(zone);
-  let end   = DateTime.fromISO(clockOutISO).setZone(zone);
-  if (!end.isValid || !start.isValid || end <= start) return [];
-
-  const parts = [];
-  let cursor = start;
-  while (cursor < end) {
-    const nextMidnight = cursor.plus({ days: 1 }).startOf('day'); // midnight after cursor
-    const segEnd = end < nextMidnight ? end : nextMidnight;
-    const mins = segEnd.diff(cursor, 'minutes').minutes;
-    if (mins > 0) {
-      parts.push({
-        day: cursor.toISODate(),                // YYYY-MM-DD in BUSINESS_TZ
-        minutes: Math.round(mins)
-      });
-    }
-    cursor = segEnd;
-  }
-  return parts;
-}
-
-// ================== CLOCK IN ==================
+// ✅ Clock In
 exports.clockIn = async (req, res) => {
   try {
     const { pin, employeeId } = req.body;
 
     const employee = await Employee.findOne({ where: { id: employeeId } });
-    if (!employee) return res.status(404).json({ error: 'Invalid employee' });
+    if (!employee) {
+      return res.status(404).json({ error: 'Invalid employee' });
+    }
 
     const isMatch = bcrypt.compareSync(pin, employee.pin);
-    if (!isMatch) return res.status(401).json({ error: 'Invalid PIN' });
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
 
-    // Prevent multiple open sessions
+    const now = DateTime.now().setZone('Europe/London');
+
+    // ✅ NEW: Only prevent clock-in if an open session exists
     const openAttendance = await Attendance.findOne({
-      where: { employee_id: employee.id, clock_out: null }
+      where: {
+        employee_id: employee.id,
+        clock_out: null
+      }
     });
+
     if (openAttendance) {
       return res.status(400).json({ error: 'Already clocked in (open session exists)' });
     }
 
-    const now = nowInTZ();
-
+    // ✅ Allow new clock-in (even if it's the same day)
     const newAttendance = await Attendance.create({
       employee_id: employee.id,
       clock_in: now.toUTC().toISO(),
-      clock_in_uk: now.toFormat('dd/MM/yyyy HH:mm'), // keep your display field
+      clock_in_uk: now.toFormat('dd/MM/yyyy HH:mm'),
     });
 
     return res.json({ message: 'Clock-in recorded', attendance: newAttendance });
@@ -73,81 +55,99 @@ exports.clockIn = async (req, res) => {
   }
 };
 
-// ================== CLOCK OUT ==================
+
+// ✅ Clock Out
 exports.clockOut = async (req, res) => {
   try {
     const { pin, employeeId } = req.body;
 
     const employee = await Employee.findOne({ where: { id: employeeId } });
-    if (!employee) return res.status(404).json({ error: 'Invalid employee' });
+    if (!employee) {
+      return res.status(404).json({ error: 'Invalid employee' });
+    }
 
     const isMatch = bcrypt.compareSync(pin, employee.pin);
-    if (!isMatch) return res.status(401).json({ error: 'Invalid PIN' });
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
 
-    const now = nowInTZ();
+    const now = DateTime.now().setZone('Europe/London');
 
-    // Most recent open session
+    // Find the most recent attendance entry that is not clocked out yet
     const attendance = await Attendance.findOne({
-      where: { employee_id: employee.id, clock_out: null },
+      where: {
+        employee_id: employee.id,
+        clock_out: null
+      },
       order: [['clock_in', 'DESC']]
     });
+
     if (!attendance) {
       return res.status(404).json({ error: 'No clock-in found or already clocked out' });
     }
 
-    // Close it
+    // Calculate duration for this clock-in/out
+    const clockInTime = DateTime.fromISO(attendance.clock_in);
+    const durationMinutes = now.diff(clockInTime, 'minutes').minutes;
+
+    // Save this attendance entry
     attendance.clock_out = now.toUTC().toISO();
     attendance.clock_out_uk = now.toFormat('dd/MM/yyyy HH:mm');
-
-    // Total minutes for THIS single shift
-    const shiftMinutes = DateTime.fromISO(attendance.clock_out)
-      .diff(DateTime.fromISO(attendance.clock_in), 'minutes').minutes;
-
-    attendance.total_work_hours = minutesToHHMM(Math.max(0, Math.round(shiftMinutes)));
+    attendance.total_work_hours = minutesToHoursMinutes(durationMinutes);
     await attendance.save();
 
-    // Also return the split-by-midnight allocation for convenience
-    const parts = splitByMidnight(attendance.clock_in, attendance.clock_out, BUSINESS_TZ);
+    // Calculate total for today (all completed entries)
+    const today = now.toFormat('yyyy-LL-dd');
+    const allTodayEntries = await Attendance.findAll({
+      where: {
+        employee_id: employee.id,
+        clock_in_uk: { [Op.like]: `${today}%` },
+        clock_out: { [Op.ne]: null } // only completed shifts
+      }
+    });
+
+    let totalMinutes = 0;
+    allTodayEntries.forEach(entry => {
+      const ci = DateTime.fromISO(entry.clock_in);
+      const co = DateTime.fromISO(entry.clock_out);
+      totalMinutes += co.diff(ci, 'minutes').minutes;
+    });
 
     return res.json({
       message: 'Clock-out recorded',
       attendance: {
         ...attendance.toJSON(),
-        daily_allocation: parts, // [{day:'YYYY-MM-DD', minutes: N}, ...]
+        total_work_hours: minutesToHoursMinutes(totalMinutes)
       }
     });
+
   } catch (err) {
     console.error('Clock-Out Error:', err);
     res.status(500).json({ error: 'Clock-out failed' });
   }
 };
 
-// ================== PER-DATE RAW RECORDS (overlap-aware) ==================
-// Returns raw attendance rows that overlap the requested date in BUSINESS_TZ.
+function minutesToHoursMinutes(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = Math.floor(minutes % 60);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+
+// ✅ Get attendance records by date
 exports.getAttendanceByDate = async (req, res) => {
   try {
     const date = req.query.date
-      ? DateTime.fromISO(req.query.date).setZone(BUSINESS_TZ)
-      : nowInTZ();
+      ? DateTime.fromISO(req.query.date).setZone('Europe/London')
+      : getUKTime();
 
-    // Compute the UTC window for the local day
-    const startLocal = date.startOf('day');
-    const endLocal   = date.endOf('day');
-    const startUTC = startLocal.toUTC().toJSDate();
-    const endUTC   = endLocal.toUTC().toJSDate();
+    const start = date.startOf('day').toJSDate();
+    const end = date.endOf('day').toJSDate();
 
-    // Fetch any rows that overlap the local day:
-    // (clock_in < dayEnd) AND (COALESCE(clock_out, nowUTC) > dayStart)
-    const nowUTC = new Date();
     const records = await Attendance.findAll({
       where: {
-        clock_in: { [Op.lt]: endUTC },
-        [Op.or]: [
-          { clock_out: { [Op.gt]: startUTC } },
-          { clock_out: null } // open shift overlapping the day
-        ]
+        clock_in: { [Op.between]: [start, end] },
       },
-      order: [['clock_in', 'ASC']]
     });
 
     res.status(200).json(records);
@@ -157,78 +157,41 @@ exports.getAttendanceByDate = async (req, res) => {
   }
 };
 
-// ================== DAILY SUMMARY (split at midnight) ==================
-// GET /attendance/daily-summary?date=YYYY-MM-DD
-// Returns [{ employee_id, minutes }] counting only minutes within that local date.
-exports.getDailySummary = async (req, res) => {
+// ✅ Get today's status for all employees
+exports.getStatus = async (req, res) => {
   try {
-    const date = req.query.date
-      ? DateTime.fromISO(req.query.date).setZone(BUSINESS_TZ)
-      : nowInTZ();
+    const today = DateTime.now().setZone('Europe/London').toFormat('dd/MM/yyyy');
+    console.log('🔍 Today (BST format):', today);
 
-    const startLocal = date.startOf('day');
-    const endLocal   = date.endOf('day');
-    const startUTC = startLocal.toUTC().toJSDate();
-    const endUTC   = endLocal.toUTC().toJSDate();
-    const targetISODate = startLocal.toISODate(); // YYYY-MM-DD
-
-    const rows = await Attendance.findAll({
+    const records = await Attendance.findAll({
       where: {
-        clock_in: { [Op.lt]: endUTC },
-        [Op.or]: [
-          { clock_out: { [Op.gt]: startUTC } },
-          { clock_out: null }
-        ]
+        clock_in_uk: {
+          [Op.like]: `${today}%`
+        }
       },
-      attributes: ['id', 'employee_id', 'clock_in', 'clock_out']
+      attributes: ['employee_id', 'clock_out'],
     });
 
-    // Aggregate minutes by employee for the target day
-    const totals = new Map(); // employee_id -> minutes
-    const nowUTC = DateTime.now().toUTC().toISO();
+    console.log('📦 Raw Attendance Records:', records);
 
-    rows.forEach(r => {
-      const ci = r.clock_in;
-      const co = r.clock_out || nowUTC; // open shift: use "now"
-      const parts = splitByMidnight(ci, co, BUSINESS_TZ);
-      const match = parts.find(p => p.day === targetISODate);
-      if (match && match.minutes > 0) {
-        totals.set(r.employee_id, (totals.get(r.employee_id) || 0) + match.minutes);
+    const latestStatusMap = {};
+    records.forEach(record => {
+      if (record && record.employee_id != null) {
+        latestStatusMap[record.employee_id] = record.clock_out ? 'Clocked Out' : 'Clocked In';
       }
     });
 
-    res.json(
-      Array.from(totals.entries()).map(([employee_id, minutes]) => ({
-        employee_id,
-        minutes,
-        hhmm: minutesToHHMM(minutes)
-      }))
-    );
-  } catch (err) {
-    console.error('Daily summary error:', err);
-    res.status(500).json({ error: 'Failed to build daily summary' });
-  }
-};
+    const result = Object.entries(latestStatusMap).map(([id, status]) => ({
+      id: parseInt(id),
+      status
+    }));
 
-// ================== TODAY STATUS (overnight-safe) ==================
-// Marks an employee as "Clocked In" if they have ANY open session (regardless of the day they started).
-exports.getStatus = async (req, res) => {
-  try {
-    // Find all open sessions
-    const openRows = await Attendance.findAll({
-      where: { clock_out: null },
-      attributes: ['employee_id']
-    });
+    console.log('✅ Final Result to Send:', result);
 
-    const openSet = new Set(openRows.map(r => Number(r.employee_id)));
-
-    // Build status list: employees with open session => Clocked In
-    // (If your UI needs all employees, join with Employees table here.
-    // For now we return only employees that had any record today or are open.)
-    const result = Array.from(openSet).map(id => ({ id, status: 'Clocked In' }));
     res.json(result);
   } catch (err) {
-    console.error('Attendance Status Error:', err);
-    res.status(500).json({ error: 'Failed to fetch status' });
+    console.error('🔴 Attendance Status Error:', err.message);
+    console.error(err.stack);
+    res.status(500).json({ error: 'Failed to fetch status', details: err.message });
   }
 };
