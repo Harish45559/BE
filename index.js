@@ -57,6 +57,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/sales', salesRoutes);
+app.use('/api/sales', require('./routes/salesRoutes'));  // ✅ IMPORTANT
 
 // ✅ Serve React build only if it exists (for single-repo deploys)
 const distPath = path.join(__dirname, 'client', 'dist');
