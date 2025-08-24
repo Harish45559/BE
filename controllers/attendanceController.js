@@ -1,18 +1,49 @@
+// controllers/attendanceController.js
 const { DateTime } = require('luxon');
 const { Op } = require('sequelize');
-const Attendance = require('../models/Attendance');
-const Employee = require('../models/Employee');
 const bcrypt = require('bcryptjs');
 
-const getUKTime = () => DateTime.now().setZone('Europe/London');
+const Attendance = require('../models/Attendance');
+const Employee = require('../models/Employee');
 
-function minutesToHoursMinutes(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = Math.floor(minutes % 60);
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-}
+/* ----------------------------- helpers ----------------------------- */
+const ukNow = () => DateTime.now().setZone('Europe/London');
 
-// ✅ Clock In
+const toHHMM = (mins) => {
+  const m = Math.max(0, Math.round(Number(mins) || 0));
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return `${String(h).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+};
+
+// Parse a value that might be a JS Date (from Sequelize) or an ISO string
+const parseUTC = (val) => {
+  if (!val) return null;
+  if (val instanceof Date) return DateTime.fromJSDate(val, { zone: 'utc' });
+  if (typeof val === 'string') return DateTime.fromISO(val, { zone: 'utc' });
+  try {
+    return DateTime.fromJSDate(new Date(val), { zone: 'utc' });
+  } catch {
+    return null;
+  }
+};
+
+// Compute net minutes between two ISO datetimes (UTC), with auto break
+const netMinutesBetween = (clockInISO, clockOutISO) => {
+  const ci = parseUTC(clockInISO);
+  const co = clockOutISO ? parseUTC(clockOutISO) : DateTime.utc();
+  if (!ci?.isValid || !co?.isValid) return 0;
+
+  // Diff entirely in UTC so midnight rollover is never a problem
+  const gross = Math.max(0, Math.round(co.diff(ci, 'minutes').minutes));
+
+  // Auto break: 30 minutes if shift >= 6 hours (360 min)
+  const breakMinutes = gross >= 360 ? 30 : 0;
+
+  return Math.max(0, gross - breakMinutes);
+};
+
+/* ------------------------------ clock in --------------------------- */
 exports.clockIn = async (req, res) => {
   try {
     const { pin, employeeId } = req.body;
@@ -20,32 +51,33 @@ exports.clockIn = async (req, res) => {
     const employee = await Employee.findOne({ where: { id: employeeId } });
     if (!employee) return res.status(404).json({ error: 'Invalid employee' });
 
-    const isMatch = bcrypt.compareSync(pin, employee.pin);
-    if (!isMatch) return res.status(401).json({ error: 'Invalid PIN' });
+    const ok = bcrypt.compareSync(pin, employee.pin);
+    if (!ok) return res.status(401).json({ error: 'Invalid PIN' });
 
-    const now = getUKTime();
-
-    const openAttendance = await Attendance.findOne({
-      where: { employee_id: employee.id, clock_out: null }
+    // prevent overlapping open session
+    const open = await Attendance.findOne({
+      where: { employee_id: employee.id, clock_out: { [Op.is]: null } }
     });
-    if (openAttendance) {
-      return res.status(400).json({ error: 'Already clocked in' });
-    }
+    if (open) return res.status(400).json({ error: 'Already clocked in (open session exists)' });
 
-    const newAttendance = await Attendance.create({
+    const nowUK = ukNow();
+
+    const created = await Attendance.create({
       employee_id: employee.id,
-      clock_in: now.toUTC().toISO(),
-      clock_in_uk: now.toFormat('dd/MM/yyyy HH:mm'),
+      clock_in: nowUK.toUTC().toISO(),                 // canonical UTC
+      clock_in_uk: nowUK.toFormat('dd/MM/yyyy HH:mm'), // display copy
+      break_minutes: 0,
+      total_work_hours: null
     });
 
-    return res.json({ message: 'Clock-in recorded', attendance: newAttendance });
+    res.json({ message: 'Clock-in recorded', attendance: created });
   } catch (err) {
     console.error('Clock-In Error:', err);
     res.status(500).json({ error: 'Clock-in failed' });
   }
 };
 
-// ✅ Clock Out (with auto break + total hours)
+/* ------------------------------ clock out -------------------------- */
 exports.clockOut = async (req, res) => {
   try {
     const { pin, employeeId } = req.body;
@@ -53,96 +85,121 @@ exports.clockOut = async (req, res) => {
     const employee = await Employee.findOne({ where: { id: employeeId } });
     if (!employee) return res.status(404).json({ error: 'Invalid employee' });
 
-    const isMatch = bcrypt.compareSync(pin, employee.pin);
-    if (!isMatch) return res.status(401).json({ error: 'Invalid PIN' });
+    const ok = bcrypt.compareSync(pin, employee.pin);
+    if (!ok) return res.status(401).json({ error: 'Invalid PIN' });
 
-    const now = getUKTime();
+    const nowUK = ukNow();
+    const nowUTC = nowUK.toUTC();
 
+    // latest open shift
     const attendance = await Attendance.findOne({
-      where: { employee_id: employee.id, clock_out: null },
+      where: { employee_id: employee.id, clock_out: { [Op.is]: null } },
       order: [['clock_in', 'DESC']]
     });
     if (!attendance) {
       return res.status(404).json({ error: 'No clock-in found or already clocked out' });
     }
 
-    const clockInTime = DateTime.fromISO(attendance.clock_in);
-    const grossMinutes = now.diff(clockInTime, 'minutes').minutes;
+    // Compute net minutes (safe across midnight, robust parsing)
+    const ciUTC = parseUTC(attendance.clock_in);
+    if (!ciUTC?.isValid) {
+      console.error('Invalid clock_in on record:', attendance.clock_in);
+      return res.status(500).json({ error: 'Invalid clock-in timestamp on record' });
+    }
 
-    // Auto break: 30 min if shift ≥ 6h
-    let breakMinutes = grossMinutes >= 360 ? 30 : 0;
-    const netMinutes = Math.max(0, grossMinutes - breakMinutes);
+    const gross = Math.max(0, Math.round(nowUTC.diff(ciUTC, 'minutes').minutes));
+    const breakMinutes = gross >= 360 ? 30 : 0;
+    const net = Math.max(0, gross - breakMinutes);
 
-    attendance.clock_out = now.toUTC().toISO();
-    attendance.clock_out_uk = now.toFormat('dd/MM/yyyy HH:mm');
+    attendance.clock_out = nowUTC.toISO();                   // canonical UTC
+    attendance.clock_out_uk = nowUK.toFormat('dd/MM/yyyy HH:mm');
     attendance.break_minutes = breakMinutes;
-    attendance.total_work_hours = minutesToHoursMinutes(netMinutes);
+    attendance.total_work_hours = toHHMM(net);
     await attendance.save();
 
-    return res.json({ message: 'Clock-out recorded', attendance });
+    res.json({ message: 'Clock-out recorded', attendance });
   } catch (err) {
     console.error('Clock-Out Error:', err);
     res.status(500).json({ error: 'Clock-out failed' });
   }
 };
 
-// ✅ Attendance by date (handles overnight)
+/* ------------------------ attendance by date ----------------------- */
+/* Includes records that start, end, or span the date.
+   Also returns computed per-row HH:MM and a daily total so the UI
+   can render “Day details” without doing its own math. */
 exports.getAttendanceByDate = async (req, res) => {
   try {
-    const date = req.query.date
+    const qDate = req.query.date
       ? DateTime.fromISO(req.query.date).setZone('Europe/London')
-      : getUKTime();
+      : ukNow();
 
-    const start = date.startOf('day').toJSDate();
-    const end = date.endOf('day').toJSDate();
+    // Use UTC boundaries to match stored UTC values
+    const startUTC = qDate.startOf('day').toUTC().toJSDate();
+    const endUTC = qDate.endOf('day').toUTC().toJSDate();
 
-    const records = await Attendance.findAll({
+    const rows = await Attendance.findAll({
       where: {
         [Op.or]: [
-          { clock_in: { [Op.between]: [start, end] } },     // started today
-          { clock_out: { [Op.between]: [start, end] } },    // ended today
-          {                                                 // spans overnight
+          { clock_in:  { [Op.between]: [startUTC, endUTC] } }, // started today
+          { clock_out: { [Op.between]: [startUTC, endUTC] } }, // ended today
+          { // spans overnight across this day or still open
             [Op.and]: [
-              { clock_in: { [Op.lt]: start } },
-              { clock_out: { [Op.or]: [{ [Op.gt]: end }, { [Op.is]: null }] } }
+              { clock_in:  { [Op.lt]: startUTC } },
+              { clock_out: { [Op.or]: [{ [Op.gt]: endUTC }, { [Op.is]: null }] } }
             ]
           }
         ]
       },
+      order: [['clock_in', 'ASC']]
     });
 
-    res.status(200).json(records);
+    let dailyMinutes = 0;
+    const items = rows.map(r => {
+      const mins = netMinutesBetween(r.clock_in, r.clock_out);
+      dailyMinutes += mins;
+      return {
+        ...r.toJSON(),
+        computed_work_minutes: mins,
+        computed_work_hhmm: toHHMM(mins),
+      };
+    });
+
+    res.json({
+      date: qDate.toFormat('dd/MM/yyyy'),
+      daily_total_minutes: dailyMinutes,
+      daily_total_hhmm: toHHMM(dailyMinutes),
+      items
+    });
   } catch (err) {
     console.error('Fetch attendance error:', err);
     res.status(500).json({ error: 'Failed to fetch attendance' });
   }
 };
 
-// ✅ Current status (no midnight reset)
-exports.getStatus = async (req, res) => {
+/* ------------------------------ status ----------------------------- */
+/* Latest record per employee; no midnight reset. */
+exports.getStatus = async (_req, res) => {
   try {
-    const records = await Attendance.findAll({
+    const rows = await Attendance.findAll({
       attributes: ['employee_id', 'clock_in', 'clock_out'],
-      order: [['clock_in', 'DESC']],
+      order: [['clock_in', 'DESC']]
     });
 
-    const latestStatusMap = {};
-    records.forEach(record => {
-      if (!record || !record.employee_id) return;
-      if (!latestStatusMap[record.employee_id]) {
-        latestStatusMap[record.employee_id] =
-          record.clock_out === null ? 'Clocked In' : 'Clocked Out';
+    const latest = {};
+    for (const r of rows) {
+      const id = r.employee_id;
+      if (!id) continue;
+      if (!(id in latest)) {
+        latest[id] = r.clock_out == null ? 'Clocked In' : 'Clocked Out';
       }
-    });
+    }
 
-    const result = Object.entries(latestStatusMap).map(([id, status]) => ({
-      id: parseInt(id),
-      status,
-    }));
-
-    res.json(result);
+    res.json(
+      Object.entries(latest).map(([id, status]) => ({ id: Number(id), status }))
+    );
   } catch (err) {
-    console.error('Attendance Status Error:', err.message);
+    console.error('Attendance Status Error:', err);
     res.status(500).json({ error: 'Failed to fetch status', details: err.message });
   }
 };
