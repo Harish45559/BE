@@ -29,6 +29,7 @@ const parseUTC = (val) => {
 };
 
 // Compute net minutes between two ISO datetimes (UTC), with auto break
+// This handles overnight spans cleanly because we always diff in UTC.
 const netMinutesBetween = (clockInISO, clockOutISO) => {
   const ci = parseUTC(clockInISO);
   const co = clockOutISO ? parseUTC(clockOutISO) : DateTime.utc();
@@ -60,20 +61,23 @@ exports.clockIn = async (req, res) => {
     });
     if (open) return res.status(400).json({ error: 'Already clocked in (open session exists)' });
 
+    const nowUTC = DateTime.utc();
     const nowUK = ukNow();
 
-    const created = await Attendance.create({
+    const attendance = await Attendance.create({
       employee_id: employee.id,
-      clock_in: nowUK.toUTC().toISO(),                 // canonical UTC
-      clock_in_uk: nowUK.toFormat('dd/MM/yyyy HH:mm'), // display copy
+      clock_in: nowUTC.toISO(),
+      clock_in_uk: nowUK.toFormat('dd/MM/yyyy HH:mm'),
+      clock_out: null,
+      clock_out_uk: null,
       break_minutes: 0,
-      total_work_hours: null
+      total_work_hours: null,
     });
 
-    res.json({ message: 'Clock-in recorded', attendance: created });
+    return res.json({ message: 'Clock-in recorded', attendance });
   } catch (err) {
-    console.error('Clock-In Error:', err);
-    res.status(500).json({ error: 'Clock-in failed' });
+    console.error('Clock-in error:', err);
+    return res.status(500).json({ error: 'Failed to clock in' });
   }
 };
 
@@ -88,25 +92,22 @@ exports.clockOut = async (req, res) => {
     const ok = bcrypt.compareSync(pin, employee.pin);
     if (!ok) return res.status(401).json({ error: 'Invalid PIN' });
 
-    const nowUK = ukNow();
-    const nowUTC = nowUK.toUTC();
-
-    // latest open shift
     const attendance = await Attendance.findOne({
       where: { employee_id: employee.id, clock_out: { [Op.is]: null } },
-      order: [['clock_in', 'DESC']]
+      order: [['clock_in', 'DESC']],
     });
-    if (!attendance) {
-      return res.status(404).json({ error: 'No clock-in found or already clocked out' });
-    }
+    if (!attendance) return res.status(400).json({ error: 'No open session to clock out' });
 
-    // Compute net minutes (safe across midnight, robust parsing)
+    const nowUTC = DateTime.utc();
+    const nowUK = ukNow();
+
     const ciUTC = parseUTC(attendance.clock_in);
     if (!ciUTC?.isValid) {
       console.error('Invalid clock_in on record:', attendance.clock_in);
       return res.status(500).json({ error: 'Invalid clock-in timestamp on record' });
     }
 
+    // Compute net minutes safely across midnight in UTC
     const gross = Math.max(0, Math.round(nowUTC.diff(ciUTC, 'minutes').minutes));
     const breakMinutes = gross >= 360 ? 30 : 0;
     const net = Math.max(0, gross - breakMinutes);
@@ -119,15 +120,15 @@ exports.clockOut = async (req, res) => {
 
     res.json({ message: 'Clock-out recorded', attendance });
   } catch (err) {
-    console.error('Clock-Out Error:', err);
-    res.status(500).json({ error: 'Clock-out failed' });
+    console.error('Clock-out error:', err);
+    return res.status(500).json({ error: 'Failed to clock out' });
   }
 };
 
-/* ------------------------ attendance by date ----------------------- */
-/* Includes records that start, end, or span the date.
-   Also returns computed per-row HH:MM and a daily total so the UI
-   can render “Day details” without doing its own math. */
+/* --------------------------- fetch by date ------------------------- */
+/* Returns records that start or end on the given calendar day (UK),
+   and includes per-record computed minutes + daily total.
+   Client can render “Day details” without doing its own math. */
 exports.getAttendanceByDate = async (req, res) => {
   try {
     const qDate = req.query.date
@@ -143,12 +144,6 @@ exports.getAttendanceByDate = async (req, res) => {
         [Op.or]: [
           { clock_in:  { [Op.between]: [startUTC, endUTC] } }, // started today
           { clock_out: { [Op.between]: [startUTC, endUTC] } }, // ended today
-          { // spans overnight across this day or still open
-            [Op.and]: [
-              { clock_in:  { [Op.lt]: startUTC } },
-              { clock_out: { [Op.or]: [{ [Op.gt]: endUTC }, { [Op.is]: null }] } }
-            ]
-          }
         ]
       },
       order: [['clock_in', 'ASC']]
