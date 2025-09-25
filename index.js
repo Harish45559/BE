@@ -72,6 +72,7 @@ if (fs.existsSync(distPath)) {
 db.sync({ force: false }).then(async () => {
   console.log('✅ PostgreSQL synced');
 
+  // ---------- FIXED: seed admin ONLY if missing (do not overwrite existing password) ----------
   const defaultPassword = 'newSecure123';
   const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
@@ -80,13 +81,12 @@ db.sync({ force: false }).then(async () => {
     defaults: { password: hashedPassword }
   });
 
-  if (!created) {
-    adminUser.password = hashedPassword;
-    await adminUser.save();
-    console.log('🔁 Admin password updated (hashed)');
+  if (created) {
+    console.log('✅ Admin user created with default password');
   } else {
-    console.log('✅ Admin user created');
+    console.log('ℹ️ Admin user already exists, keeping current password');
   }
+  // --------------------------------------------------------------------------------------------
 
   const PORT = process.env.PORT || 5000;
 
