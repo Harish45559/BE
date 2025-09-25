@@ -35,8 +35,7 @@ exports.getSalesSummary = async (req, res) => {
   }
 };
 
-// GET /sales/topselling?fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD
-// -> [{ name, quantity }, ...] sorted desc
+
 exports.getTopSellingItems = async (req, res) => {
   try {
     const { fromDate, toDate } = req.query;
@@ -69,8 +68,7 @@ exports.getTopSellingItems = async (req, res) => {
   }
 };
 
-// GET /sales/totalsales?fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD
-// -> raw orders for Orders table
+
 exports.getTotalSales = async (req, res) => {
   try {
     const { fromDate, toDate } = req.query;
