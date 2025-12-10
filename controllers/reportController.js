@@ -291,6 +291,10 @@ exports.exportCSV = async (req, res) => {
 };
 
 // ✅ Export PDF
+const path = require('path');
+const fs = require('fs');
+// ... keep your other requires (PdfPrinter, Attendance, Employee, Op, toUK, computeTotalHours, etc.)
+
 exports.exportPDF = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
@@ -308,12 +312,28 @@ exports.exportPDF = async (req, res) => {
       order: [['clock_in', 'DESC']],
     });
 
+    // Resolve font paths from process.cwd() so they work in deployed environment
+    const robotoNormal = path.resolve(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto-Regular.ttf');
+    const robotoBold = path.resolve(process.cwd(), 'node_modules', 'pdfmake', 'fonts', 'Roboto-Medium.ttf');
+
+    // Check existence (makes debugging easier)
+    if (!fs.existsSync(robotoNormal) || !fs.existsSync(robotoBold)) {
+      console.error('PDF fonts not found. Looked for:', robotoNormal, robotoBold);
+      // Return a helpful error to the client instead of failing silently
+      if (!res.headersSent) {
+        return res.status(500).json({ error: 'PDF fonts not found on server. Please ensure Roboto ttf files are included.' });
+      } else {
+        return;
+      }
+    }
+
     const fonts = {
       Roboto: {
-        normal: 'node_modules/pdfmake/fonts/Roboto-Regular.ttf',
-        bold: 'node_modules/pdfmake/fonts/Roboto-Medium.ttf',
+        normal: robotoNormal,
+        bold: robotoBold,
       }
     };
+
     const printer = new PdfPrinter(fonts);
 
     const tableBody = [
@@ -325,9 +345,9 @@ exports.exportPDF = async (req, res) => {
       ],
       ...reports.map((r) => [
         r.employee ? `${r.employee.first_name} ${r.employee.last_name}` : '',
-        toUK(r.clock_in)?.toFormat('dd/MM/yyyy HH:mm') || '',
-        r.clock_out ? toUK(r.clock_out)?.toFormat('dd/MM/yyyy HH:mm') : '',
-        computeTotalHours(r.clock_in, r.clock_out)
+        r.clock_in ? (toUK(r.clock_in).toFormat ? toUK(r.clock_in).toFormat('dd/MM/yyyy HH:mm') : new Date(r.clock_in).toISOString()) : '',
+        r.clock_out ? (toUK(r.clock_out).toFormat ? toUK(r.clock_out).toFormat('dd/MM/yyyy HH:mm') : new Date(r.clock_out).toISOString()) : '',
+        typeof computeTotalHours === 'function' ? computeTotalHours(r.clock_in, r.clock_out) : ''
       ])
     ];
 
@@ -374,12 +394,30 @@ exports.exportPDF = async (req, res) => {
     };
 
     const pdfDoc = printer.createPdfKitDocument(docDefinition);
+
+    // Surface stream errors to logs and client
+    pdfDoc.on('error', (err) => {
+      console.error('PDF stream error:', err && err.stack ? err.stack : err);
+      if (!res.headersSent) {
+        try {
+          res.status(500).json({ error: 'PDF generation stream error' });
+        } catch (e) {
+          // nothing we can do if headers already sent
+        }
+      } else {
+        res.destroy(err);
+      }
+    });
+
     res.setHeader('Content-Disposition', 'attachment; filename=attendance_report.pdf');
     res.setHeader('Content-Type', 'application/pdf');
+
     pdfDoc.pipe(res);
     pdfDoc.end();
+
   } catch (err) {
-    console.error('PDF Export Error:', err);
+    // Log full stack to make debugging easier on Render
+    console.error('PDF Export Error:', err && err.stack ? err.stack : err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Failed to generate PDF' });
     }
