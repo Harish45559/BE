@@ -354,6 +354,7 @@ exports.exportPDF = async (req, res) => {
   try {
     const { employee_id, from, to } = req.query;
     const where = {};
+
     if (employee_id && employee_id !== "all") where.employee_id = employee_id;
     if (from || to) {
       where.clock_in = {};
@@ -370,148 +371,70 @@ exports.exportPDF = async (req, res) => {
           attributes: ["first_name", "last_name"],
         },
       ],
-      order: [["clock_in", "DESC"]],
+      order: [["clock_in", "ASC"]],
     });
 
-    // Resolve font paths from process.cwd() so they work in deployed environment
     const robotoNormal = path.resolve(
       process.cwd(),
-      "node_modules",
-      "pdfmake",
-      "fonts",
-      "Roboto-Regular.ttf"
+      "node_modules/pdfmake/fonts/Roboto-Regular.ttf"
     );
     const robotoBold = path.resolve(
       process.cwd(),
-      "node_modules",
-      "pdfmake",
-      "fonts",
-      "Roboto-Medium.ttf"
+      "node_modules/pdfmake/fonts/Roboto-Medium.ttf"
     );
 
-    // Check existence (makes debugging easier)
-    if (!fs.existsSync(robotoNormal) || !fs.existsSync(robotoBold)) {
-      console.error(
-        "PDF fonts not found. Looked for:",
-        robotoNormal,
-        robotoBold
-      );
-      // Return a helpful error to the client instead of failing silently
-      if (!res.headersSent) {
-        return res.status(500).json({
-          error:
-            "PDF fonts not found on server. Please ensure Roboto ttf files are included.",
-        });
-      } else {
-        return;
-      }
-    }
-
-    const fonts = {
-      Roboto: {
-        normal: robotoNormal,
-        bold: robotoBold,
-      },
-    };
-
+    const fonts = { Roboto: { normal: robotoNormal, bold: robotoBold } };
     const printer = new PdfPrinter(fonts);
 
+    let grandTotalMinutes = 0;
+
     const tableBody = [
-      [
-        { text: "Employee", style: "tableHeader" },
-        { text: "Clock In", style: "tableHeader" },
-        { text: "Clock Out", style: "tableHeader" },
-        { text: "Total Hours", style: "tableHeader" },
-      ],
-      ...reports.map((r) => [
-        r.employee ? `${r.employee.first_name} ${r.employee.last_name}` : "",
-        r.clock_in
-          ? toUK(r.clock_in).toFormat
-            ? toUK(r.clock_in).toFormat("dd/MM/yyyy HH:mm")
-            : new Date(r.clock_in).toISOString()
-          : "",
-        r.clock_out
-          ? toUK(r.clock_out).toFormat
-            ? toUK(r.clock_out).toFormat("dd/MM/yyyy HH:mm")
-            : new Date(r.clock_out).toISOString()
-          : "",
-        typeof computeTotalHours === "function"
-          ? computeTotalHours(r.clock_in, r.clock_out)
-          : "",
-      ]),
+      ["Employee", "Clock In", "Clock Out", "Total Hours"],
+      ...reports.map((r) => {
+        const mins = diffMinutes(r.clock_in, r.clock_out);
+        grandTotalMinutes += mins;
+        return [
+          r.employee ? `${r.employee.first_name} ${r.employee.last_name}` : "",
+          r.clock_in ? toUK(r.clock_in).toFormat("dd/MM/yyyy HH:mm") : "",
+          r.clock_out ? toUK(r.clock_out).toFormat("dd/MM/yyyy HH:mm") : "",
+          minutesToHHMM(mins),
+        ];
+      }),
+      ["", "", "TOTAL", minutesToHHMM(grandTotalMinutes)],
     ];
 
     const docDefinition = {
-      pageSize: "A4",
-      pageMargins: [40, 60, 40, 60],
       content: [
         { text: "Attendance Report", style: "header" },
         {
-          style: "tableStyle",
           table: {
             headerRows: 1,
             widths: ["*", "*", "*", "*"],
             body: tableBody,
           },
-          layout: {
-            fillColor: (i) => (i === 0 ? "#f3f4f6" : null),
-            hLineColor: () => "#d1d5db",
-            vLineColor: () => "#d1d5db",
-            hLineWidth: () => 0.6,
-            vLineWidth: () => 0.6,
-          },
         },
       ],
       styles: {
         header: {
-          fontSize: 20,
+          fontSize: 18,
           bold: true,
           alignment: "center",
-          margin: [0, 0, 0, 20],
-        },
-        tableHeader: {
-          bold: true,
-          fillColor: "#e5e7eb",
-          color: "#111827",
-          fontSize: 12,
-          margin: [0, 4, 0, 4],
-        },
-        tableStyle: {
-          margin: [0, 0, 0, 0],
-          fontSize: 11,
+          margin: [0, 0, 0, 15],
         },
       },
     };
 
     const pdfDoc = printer.createPdfKitDocument(docDefinition);
-
-    // Surface stream errors to logs and client
-    pdfDoc.on("error", (err) => {
-      console.error("PDF stream error:", err && err.stack ? err.stack : err);
-      if (!res.headersSent) {
-        try {
-          res.status(500).json({ error: "PDF generation stream error" });
-        } catch (e) {
-          // nothing we can do if headers already sent
-        }
-      } else {
-        res.destroy(err);
-      }
-    });
-
+    res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
       "attachment; filename=attendance_report.pdf"
     );
-    res.setHeader("Content-Type", "application/pdf");
 
     pdfDoc.pipe(res);
     pdfDoc.end();
   } catch (err) {
-    // Log full stack to make debugging easier on Render
-    console.error("PDF Export Error:", err && err.stack ? err.stack : err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Failed to generate PDF" });
-    }
+    console.error("PDF Export Error:", err);
+    res.status(500).json({ error: "Failed to generate PDF" });
   }
 };
