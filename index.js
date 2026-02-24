@@ -11,17 +11,19 @@ const helmet = require("helmet");
 dotenv.config();
 const app = express();
 
-// ✅ Allowed frontend origins
+/* ================= SECURITY ================= */
+app.use(helmet());
+
+/* ================= CORS ================= */
+
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
-  "https://fe-2n6s.onrender.com", // your deployed frontend
+  "https://fe-2n6s.onrender.com",
 ];
 
-// ✅ CORS (handles preflight + headers correctly)
 const corsOptions = {
   origin(origin, cb) {
-    // allow same-origin / server-to-server (no Origin) and the whitelisted fronts
     if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
     return cb(new Error("Not allowed by CORS"));
   },
@@ -37,15 +39,15 @@ const corsOptions = {
   optionsSuccessStatus: 204,
 };
 
-// must be BEFORE routes
 app.use(cors(corsOptions));
-// respond to preflight for all routes
 app.options("*", cors(corsOptions));
 
-// ✅ Body parser
+/* ================= BODY PARSER ================= */
+
 app.use(express.json());
 
-// ✅ Import routes
+/* ================= ROUTES ================= */
+
 const authRoutes = require("./routes/authRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
@@ -55,7 +57,6 @@ const categoryRoutes = require("./routes/categoryRoutes");
 const menuRoutes = require("./routes/menuRoutes");
 const salesRoutes = require("./routes/salesRoutes");
 
-// ✅ Mount routes
 app.use("/api/auth", authRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/attendance", attendanceRoutes);
@@ -64,11 +65,11 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/sales", salesRoutes);
-app.use("/api/sales", require("./routes/salesRoutes")); // ✅ IMPORTANT
-app.use(helmet());
 
-// ✅ Serve React build only if it exists (for single-repo deploys)
+/* ================= SERVE FRONTEND (IF BUILT) ================= */
+
 const distPath = path.join(__dirname, "client", "dist");
+
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
   app.get(/^\/(?!api).*/, (req, res) => {
@@ -76,39 +77,41 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-// ✅ Sync DB and start server
+/* ================= DATABASE + SERVER START ================= */
+
 db.sync({ force: false })
   .then(async () => {
     console.log("✅ PostgreSQL synced");
 
-    // ---------- FIXED: seed admin ONLY if missing (do not overwrite existing password) ----------
-    const defaultPassword = process.env.ADMIN_DEFAULT_PASSWORD;
+    /* ===== SAFE ADMIN SEED (PRODUCTION SAFE) ===== */
 
-    if (!defaultPassword) {
-      console.error("❌ ADMIN_DEFAULT_PASSWORD not set in environment");
-      process.exit(1);
-    }
+    if (process.env.ADMIN_DEFAULT_PASSWORD) {
+      const existingAdmin = await Admin.findOne({
+        where: { username: "admin" },
+      });
 
-    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+      if (!existingAdmin) {
+        const hashedPassword = await bcrypt.hash(
+          process.env.ADMIN_DEFAULT_PASSWORD,
+          10,
+        );
 
-    const [adminUser, created] = await Admin.findOrCreate({
-      where: { username: "admin" },
-      defaults: { password: hashedPassword },
-    });
+        await Admin.create({
+          username: "admin",
+          password: hashedPassword,
+        });
 
-    if (created) {
-      console.log("✅ Admin user created with default password");
+        console.log("✅ Admin user created from environment variable");
+      } else {
+        console.log("ℹ️ Admin already exists, skipping seed");
+      }
     } else {
-      console.log("ℹ️ Admin user already exists, keeping current password");
+      console.log("ℹ️ ADMIN_DEFAULT_PASSWORD not set, skipping admin seed");
     }
-    // --------------------------------------------------------------------------------------------
+
+    /* ===== START SERVER ===== */
 
     const PORT = process.env.PORT || 5000;
-
-    // simple health/test route
-    app.get("/api/reports/test", (req, res) => {
-      res.send("✅ Direct reports test route reached.");
-    });
 
     app.listen(PORT, () => {
       console.log(`🚀 Backend running on port ${PORT}`);
