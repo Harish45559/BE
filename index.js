@@ -6,6 +6,7 @@ const db = require("./config/db");
 const { Admin } = require("./models");
 const path = require("path");
 const fs = require("fs");
+const helmet = require("helmet");
 
 dotenv.config();
 const app = express();
@@ -64,6 +65,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/sales", require("./routes/salesRoutes")); // ✅ IMPORTANT
+app.use(helmet());
 
 // ✅ Serve React build only if it exists (for single-repo deploys)
 const distPath = path.join(__dirname, "client", "dist");
@@ -80,7 +82,13 @@ db.sync({ force: false })
     console.log("✅ PostgreSQL synced");
 
     // ---------- FIXED: seed admin ONLY if missing (do not overwrite existing password) ----------
-    const defaultPassword = "newSecure123";
+    const defaultPassword = process.env.ADMIN_DEFAULT_PASSWORD;
+
+    if (!defaultPassword) {
+      console.error("❌ ADMIN_DEFAULT_PASSWORD not set in environment");
+      process.exit(1);
+    }
+
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
     const [adminUser, created] = await Admin.findOrCreate({
@@ -103,7 +111,7 @@ db.sync({ force: false })
     });
 
     app.listen(PORT, () => {
-      console.log(`🚀 Backend live at: https://be-i5z1.onrender.com`);
+      console.log(`🚀 Backend running on port ${PORT}`);
     });
   })
   .catch((err) => {

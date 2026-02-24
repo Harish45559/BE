@@ -1,20 +1,26 @@
-const { Sequelize } = require('sequelize');
-const dotenv = require('dotenv');
+const { Sequelize } = require("sequelize");
+const dotenv = require("dotenv");
+
 dotenv.config();
 
+const isProduction = process.env.NODE_ENV === "production";
+
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
-  dialect: 'postgres',
+  dialect: "postgres",
   logging: false,
-  dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false
-    }
-  }
+  dialectOptions: isProduction
+    ? {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false,
+        },
+      }
+    : {},
 });
 
-sequelize.authenticate()
-  .then(() => console.log('✅ PostgreSQL connected'))
-  .catch(err => console.error('❌ Connection error:', err));
+sequelize
+  .authenticate()
+  .then(() => console.log("✅ PostgreSQL connected"))
+  .catch((err) => console.error("❌ Connection error:", err));
 
 module.exports = sequelize;
