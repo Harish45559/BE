@@ -146,14 +146,14 @@ exports.getDailySummary = async (req, res) => {
 
       const duration = toUK(rec.clock_out).diff(
         toUK(rec.clock_in),
-        "minutes"
+        "minutes",
       ).minutes;
       grouped[key].totalMinutes += duration;
 
       grouped[key].sessions.push({
         clock_in: toUK(rec.clock_in).toFormat("HH:mm"),
         clock_out: toUK(rec.clock_out).toFormat("HH:mm"),
-        duration: minutesToHoursMinutes(duration),
+        duration: minutesToHHMM(duration),
       });
     });
 
@@ -247,7 +247,7 @@ exports.getDetailedSessions = async (req, res) => {
       if (i < sessions.length - 1) {
         const breakMinutes = sessions[i + 1].clock_in_full.diff(
           sessions[i].clock_out_full,
-          "minutes"
+          "minutes",
         ).minutes;
         if (breakMinutes > 0) {
           sessionsWithBreaks.push({
@@ -376,11 +376,11 @@ exports.exportPDF = async (req, res) => {
 
     const robotoNormal = path.resolve(
       process.cwd(),
-      "node_modules/pdfmake/fonts/Roboto-Regular.ttf"
+      "node_modules/pdfmake/fonts/Roboto-Regular.ttf",
     );
     const robotoBold = path.resolve(
       process.cwd(),
-      "node_modules/pdfmake/fonts/Roboto-Medium.ttf"
+      "node_modules/pdfmake/fonts/Roboto-Medium.ttf",
     );
 
     const fonts = { Roboto: { normal: robotoNormal, bold: robotoBold } };
@@ -428,7 +428,7 @@ exports.exportPDF = async (req, res) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=attendance_report.pdf"
+      "attachment; filename=attendance_report.pdf",
     );
 
     pdfDoc.pipe(res);
