@@ -65,6 +65,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/sales", salesRoutes);
+app.use(express.json());
 
 /* ================= SERVE FRONTEND (IF BUILT) ================= */
 
