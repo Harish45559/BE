@@ -1,14 +1,12 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const salesController = require('../controllers/salesController');
+const salesController = require("../controllers/salesController");
+const authMiddleware = require("../middleware/auth");
 
-// Totals by date range (total/cash/card)
-router.get('/summary', salesController.getSalesSummary);
+router.use(authMiddleware); // 🔒 protect all routes
 
-// Top selling items by qty from orders.items
-router.get('/topselling', salesController.getTopSellingItems);
-
-// Raw orders list (for Orders tab)
-router.get('/totalsales', salesController.getTotalSales);
+router.get("/summary", salesController.getSalesSummary);
+router.get("/topselling", salesController.getTopSellingItems);
+router.get("/totalsales", salesController.getTotalSales);
 
 module.exports = router;
