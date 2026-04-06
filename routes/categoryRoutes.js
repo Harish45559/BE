@@ -1,11 +1,13 @@
-// routes/categoryRoutes.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const categoryController = require('../controllers/categoryController');
+const categoryController = require("../controllers/categoryController");
+const authMiddleware = require("../middleware/auth");
 
-router.get('/', categoryController.getAllCategories);
-router.post('/', categoryController.createCategory);
-router.put('/:id', categoryController.updateCategory);
-router.delete('/:id', categoryController.deleteCategory);
+router.use(authMiddleware); // 🔒 protect all routes
+
+router.get("/", categoryController.getAllCategories);
+router.post("/", categoryController.createCategory);
+router.put("/:id", categoryController.updateCategory);
+router.delete("/:id", categoryController.deleteCategory);
 
 module.exports = router;

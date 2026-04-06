@@ -1,5 +1,6 @@
-const { Op } = require('sequelize');
-const { Order } = require('../models');
+const { DateTime } = require("luxon");
+const { Op } = require("sequelize");
+const { Order } = require("../models");
 
 // Inclusive UTC range for YYYY-MM-DD → YYYY-MM-DD
 const makeUtcRange = (fromDate, toDate) => {
@@ -25,16 +26,19 @@ exports.getSalesSummary = async (req, res) => {
     const orders = await Order.findAll({ where });
 
     const totalSales = orders.reduce((sum, o) => sum + money(o), 0);
-    const cashSales  = orders.filter(o => o.payment_method === 'Cash').reduce((s, o) => s + money(o), 0);
-    const cardSales  = orders.filter(o => o.payment_method === 'Card').reduce((s, o) => s + money(o), 0);
+    const cashSales = orders
+      .filter((o) => o.payment_method === "Cash")
+      .reduce((s, o) => s + money(o), 0);
+    const cardSales = orders
+      .filter((o) => o.payment_method === "Card")
+      .reduce((s, o) => s + money(o), 0);
 
     res.json({ totalSales, cashSales, cardSales });
   } catch (err) {
-    console.error('getSalesSummary error:', err);
-    res.status(500).json({ message: 'Error fetching sales summary' });
+    console.error("getSalesSummary error:", err);
+    res.status(500).json({ message: "Error fetching sales summary" });
   }
 };
-
 
 exports.getTopSellingItems = async (req, res) => {
   try {
@@ -63,29 +67,30 @@ exports.getTopSellingItems = async (req, res) => {
 
     res.json(top);
   } catch (err) {
-    console.error('getTopSellingItems error:', err);
-    res.status(500).json({ message: 'Error fetching top selling items' });
+    console.error("getTopSellingItems error:", err);
+    res.status(500).json({ message: "Error fetching top selling items" });
   }
 };
-
 
 exports.getTotalSales = async (req, res) => {
   try {
     const { fromDate, toDate } = req.query;
     const where = {};
-    if (fromDate && toDate) {
-      const { start, end } = makeUtcRange(fromDate, toDate);
-      where.created_at = { [Op.between]: [start, end] };
-    }
+
+    // default to today if no range provided
+    const from = fromDate || DateTime.now().toISODate();
+    const to = toDate || DateTime.now().toISODate();
+    const { start, end } = makeUtcRange(from, to);
+    where.created_at = { [Op.between]: [start, end] };
 
     const orders = await Order.findAll({
       where,
-      order: [['created_at', 'DESC']],
+      order: [["created_at", "DESC"]],
     });
 
     res.json(orders);
   } catch (err) {
-    console.error('getTotalSales error:', err);
-    res.status(500).json({ message: 'Error fetching total sales orders' });
+    console.error("getTotalSales error:", err);
+    res.status(500).json({ message: "Error fetching total sales orders" });
   }
 };
