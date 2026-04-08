@@ -71,8 +71,10 @@ exports.manualEntry = async (req, res) => {
       });
     }
 
-    const ci = DateTime.fromISO(clock_in, { zone: "utc" });
-    const co = clock_out ? DateTime.fromISO(clock_out, { zone: "utc" }) : null;
+    const ci = DateTime.fromISO(clock_in, { zone: "Europe/London" });
+    const co = clock_out
+      ? DateTime.fromISO(clock_out, { zone: "Europe/London" })
+      : null;
 
     if (!ci.isValid) {
       return res.status(400).json({
@@ -80,16 +82,17 @@ exports.manualEntry = async (req, res) => {
       });
     }
 
-    const result = calculateWork(ci.toISO(), co ? co.toISO() : null);
+    const result = calculateWork(
+      ci.toUTC().toISO(),
+      co ? co.toUTC().toISO() : null,
+    );
 
     const record = await Attendance.create({
       employee_id: employeeId,
-      clock_in: ci.toISO(),
-      clock_out: co ? co.toISO() : null,
-      clock_in_uk: ci.setZone("Europe/London").toFormat("dd/MM/yyyy HH:mm"),
-      clock_out_uk: co
-        ? co.setZone("Europe/London").toFormat("dd/MM/yyyy HH:mm")
-        : null,
+      clock_in: ci.toUTC().toISO(),
+      clock_out: co ? co.toUTC().toISO() : null,
+      clock_in_uk: ci.toFormat("dd/MM/yyyy HH:mm"),
+      clock_out_uk: co ? co.toFormat("dd/MM/yyyy HH:mm") : null,
       break_minutes: result.break_minutes,
       total_work_hours: result.total_work_hours,
     });
@@ -128,7 +131,7 @@ exports.updateAttendance = async (req, res) => {
     }
 
     if (clock_in) {
-      const ci = DateTime.fromISO(clock_in, { zone: "utc" });
+      const ci = DateTime.fromISO(clock_in, { zone: "Europe/London" });
 
       if (!ci.isValid) {
         return res.status(400).json({
@@ -136,14 +139,12 @@ exports.updateAttendance = async (req, res) => {
         });
       }
 
-      record.clock_in = ci.toISO();
-      record.clock_in_uk = ci
-        .setZone("Europe/London")
-        .toFormat("dd/MM/yyyy HH:mm");
+      record.clock_in = ci.toUTC().toISO();
+      record.clock_in_uk = ci.toFormat("dd/MM/yyyy HH:mm");
     }
 
     if (clock_out) {
-      const co = DateTime.fromISO(clock_out, { zone: "utc" });
+      const co = DateTime.fromISO(clock_out, { zone: "Europe/London" });
 
       if (!co.isValid) {
         return res.status(400).json({
@@ -151,10 +152,8 @@ exports.updateAttendance = async (req, res) => {
         });
       }
 
-      record.clock_out = co.toISO();
-      record.clock_out_uk = co
-        .setZone("Europe/London")
-        .toFormat("dd/MM/yyyy HH:mm");
+      record.clock_out = co.toUTC().toISO();
+      record.clock_out_uk = co.toFormat("dd/MM/yyyy HH:mm");
     }
 
     if (new Date(record.clock_out) < new Date(record.clock_in)) {

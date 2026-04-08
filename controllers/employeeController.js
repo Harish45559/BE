@@ -96,9 +96,10 @@ exports.addEmployee = async (req, res) => {
 
     const newEmp = await Employee.create({ ...data });
 
+    const { password: _p, pin: _pin, ...safeEmp } = newEmp.toJSON();
     res.status(201).json({
       message: "Employee added successfully",
-      employee: newEmp,
+      employee: safeEmp,
     });
   } catch (err) {
     console.error("❌ Add Employee Error:", err.message);
@@ -177,10 +178,12 @@ exports.editEmployee = async (req, res) => {
     }
 
     await employee.update(dataToUpdate);
+    await employee.reload();
 
+    const { password: _p, pin: _pin, ...safeEmp } = employee.toJSON();
     res.json({
       message: "Employee updated successfully",
-      employee,
+      employee: safeEmp,
     });
   } catch (err) {
     console.error("Update Error:", err.message);

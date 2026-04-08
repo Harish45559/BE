@@ -3,9 +3,13 @@ const { Op } = require("sequelize");
 const { Order } = require("../models");
 
 // Inclusive UTC range for YYYY-MM-DD → YYYY-MM-DD
+const todayISO = () => DateTime.now().toISODate();
+
 const makeUtcRange = (fromDate, toDate) => {
-  const start = new Date(`${fromDate}T00:00:00.000Z`);
-  const end = new Date(`${toDate}T23:59:59.999Z`);
+  const from = (fromDate && fromDate.trim()) || todayISO();
+  const to = (toDate && toDate.trim()) || todayISO();
+  const start = new Date(`${from}T00:00:00.000Z`);
+  const end = new Date(`${to}T23:59:59.999Z`);
   return { start, end };
 };
 
