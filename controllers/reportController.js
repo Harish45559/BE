@@ -1,7 +1,8 @@
 const { Attendance, Employee } = require("../models");
 const { Op } = require("sequelize");
 const { Parser } = require("json2csv");
-const PdfPrinter = require("pdfmake");
+const PdfPrinter = require("pdfmake/src/printer");
+const vfsFonts = require("pdfmake/build/vfs_fonts");
 const { DateTime } = require("luxon");
 
 // ✅ FIX (Bug 2): UK time converter — always treats the raw value as UTC to avoid
@@ -402,16 +403,14 @@ exports.exportPDF = async (req, res) => {
       order: [["clock_in", "ASC"]],
     });
 
-    const robotoNormal = path.resolve(
-      process.cwd(),
-      "node_modules/pdfmake/fonts/Roboto-Regular.ttf",
-    );
-    const robotoBold = path.resolve(
-      process.cwd(),
-      "node_modules/pdfmake/fonts/Roboto-Medium.ttf",
-    );
-
-    const fonts = { Roboto: { normal: robotoNormal, bold: robotoBold } };
+    const fonts = {
+      Roboto: {
+        normal: Buffer.from(vfsFonts["Roboto-Regular.ttf"], "base64"),
+        bold: Buffer.from(vfsFonts["Roboto-Medium.ttf"], "base64"),
+        italics: Buffer.from(vfsFonts["Roboto-Italic.ttf"], "base64"),
+        bolditalics: Buffer.from(vfsFonts["Roboto-MediumItalic.ttf"], "base64"),
+      },
+    };
     const printer = new PdfPrinter(fonts);
 
     let grandTotalMinutes = 0;

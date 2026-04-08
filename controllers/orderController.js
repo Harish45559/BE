@@ -42,6 +42,17 @@ exports.placeOrder = async (req, res) => {
 
     const orderData = { ...req.body };
 
+    // ✅ Normalise payment_method capitalisation (e.g. "cash" -> "Cash")
+    const pm = (orderData.payment_method || "").trim();
+    orderData.payment_method =
+      pm.charAt(0).toUpperCase() + pm.slice(1).toLowerCase();
+
+    // ✅ Normalise items: unify quantity -> qty
+    orderData.items = items.map((it) => ({
+      ...it,
+      qty: it.qty ?? it.quantity ?? 0,
+    }));
+
     // ✅ Ensure created_at is UTC
     orderData.created_at = orderData.created_at
       ? DateTime.fromISO(orderData.created_at).toUTC().toJSDate()

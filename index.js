@@ -56,6 +56,7 @@ const orderRoutes = require("./routes/orderRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const menuRoutes = require("./routes/menuRoutes");
 const salesRoutes = require("./routes/salesRoutes");
+const tillRoutes = require("./routes/tillRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/employees", employeeRoutes);
@@ -65,6 +66,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/sales", salesRoutes);
+app.use("/api/till", tillRoutes);
 app.use(express.json());
 
 /* ================= SERVE FRONTEND (IF BUILT) ================= */

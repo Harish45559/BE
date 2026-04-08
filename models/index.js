@@ -10,8 +10,10 @@ const MenuItem = require("./menuItem");
 const OrderModel = require("./Order");
 
 const HeldOrderModel = require("./HeldOrder");
+const TillStatusModel = require("./tillstatuses");
 const Order = OrderModel(sequelize, DataTypes);
 const HeldOrder = HeldOrderModel(sequelize, DataTypes);
+const TillStatus = TillStatusModel(sequelize, DataTypes);
 
 Employee.hasMany(Attendance, { foreignKey: "employee_id", as: "attendances" });
 
@@ -27,4 +29,5 @@ module.exports = {
   MenuItem,
   Order,
   HeldOrder,
+  TillStatus,
 };
