@@ -66,6 +66,9 @@ app.use("/api/menu", menuRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/till", tillRoutes);
 
+/* ================= HEALTH CHECK ================= */
+app.get("/health", (req, res) => res.json({ status: "ok" }));
+
 /* ================= SERVE FRONTEND (IF BUILT) ================= */
 
 const distPath = path.join(__dirname, "client", "dist");
