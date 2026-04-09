@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "build": "echo 'no build needed'"
+    "build": "echo 'no build needed'",
+    "test": "jest --testTimeout=10000 --forceExit"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -27,6 +28,8 @@
     "sequelize": "^6.37.7"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "jest": "^30.3.0",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.2.2"
   }
 }
