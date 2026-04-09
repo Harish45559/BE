@@ -1,13 +1,28 @@
 const { Attendance, Employee } = require("../models");
 const { Op } = require("sequelize");
 const { Parser } = require("json2csv");
-const PdfPrinter = require("pdfmake");
+const PdfPrinter = require("pdfmake/src/printer");
+const vfsFonts = require("pdfmake/build/vfs_fonts");
 const { DateTime } = require("luxon");
 
-// UK time converter
+// ✅ FIX (Bug 2): UK time converter — always treats the raw value as UTC to avoid
+// Sequelize interpreting `timestamp without time zone` with the server's local TZ.
+// Using .getTime() (ms since epoch) for JS Date objects bypasses that offset entirely.
 const toUK = (date) => {
   if (!date) return null;
-  return DateTime.fromJSDate(new Date(date)).setZone("Europe/London");
+  if (date instanceof Date) {
+    // .getTime() is always UTC epoch ms — immune to Sequelize's local-TZ Date wrapping
+    return DateTime.fromMillis(date.getTime(), { zone: "utc" }).setZone(
+      "Europe/London",
+    );
+  }
+  const s = String(date);
+  // String already has TZ info (Z or +HH:MM) → parse normally
+  if (s.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(s)) {
+    return DateTime.fromISO(s).setZone("Europe/London");
+  }
+  // No TZ info in string → treat as UTC explicitly
+  return DateTime.fromISO(s, { zone: "utc" }).setZone("Europe/London");
 };
 
 const minutesToHHMM = (minutes) => {
@@ -15,6 +30,17 @@ const minutesToHHMM = (minutes) => {
   const h = Math.floor(minutes / 60);
   const m = Math.round(minutes % 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+
+// Convert "HH:MM" string → total minutes (used to read back DB total_work_hours)
+const durationToMin = (val) => {
+  if (!val) return 0;
+  const str = String(val).trim();
+  if (str.includes(":")) {
+    const [h, m] = str.split(":").map(Number);
+    return (Number(h) || 0) * 60 + (Number(m) || 0);
+  }
+  return 0;
 };
 
 const diffMinutes = (clockIn, clockOut) => {
@@ -56,18 +82,37 @@ exports.getReports = async (req, res) => {
       .map((rec, index) => {
         if (!rec.clock_in || !rec.employee) return null;
 
-        const clockInUK = toUK(rec.clock_in);
-        const clockOutUK = rec.clock_out ? toUK(rec.clock_out) : null;
-        const minutes = diffMinutes(rec.clock_in, rec.clock_out);
+        // ✅ FIX (Bug 2 — definitive): Use clock_in_uk / clock_out_uk directly
+        // from the DB (plain varchar columns — no pg timezone shift possible).
+        // Previously we called toUK(rec.clock_in) which re-converts the UTC
+        // timestamp through the pg-shifted JS Date, giving wrong UK times.
+        //
+        // clock_in_uk is stored as "dd/MM/yyyy HH:mm" — extract date and HH:MM.
+        const rawIn = rec.clock_in_uk || ""; // "01/04/2026 07:33"
+        const rawOut = rec.clock_out_uk || ""; // "01/04/2026 07:36"
+
+        const [datePart] = rawIn.split(" "); // "01/04/2026"
+        const [dd, mm, yyyy] = (datePart || "").split("/");
+        const dateFormatted = dd && mm && yyyy ? `${dd}-${mm}-${yyyy}` : "—";
+
+        const clockInTime = rawIn.split(" ")[1] || "—"; // "07:33"
+        const clockOutTime = rawOut ? rawOut.split(" ")[1] || "—" : "—";
+
+        // Use total_work_hours stored in DB (already computed correctly on clock-out)
+        // Fall back to diffMinutes only for records that predate the fix
+        const dbWorkHours = rec.total_work_hours; // e.g. "00:03"
+        const minutes = dbWorkHours
+          ? durationToMin(dbWorkHours)
+          : diffMinutes(rec.clock_in, rec.clock_out);
 
         return {
           id: rec.id || index + 1,
           employee: rec.employee,
-          date: clockInUK.toFormat("dd-MM-yyyy"),
-          clock_in_uk: clockInUK.toFormat("HH:mm"),
-          clock_out_uk: clockOutUK ? clockOutUK.toFormat("HH:mm") : "—",
-          total_work_hhmm: minutesToHHMM(minutes), // ✅ HH:MM
-          total_work_minutes: minutes, // numeric (unchanged usage)
+          date: dateFormatted,
+          clock_in_uk: clockInTime,
+          clock_out_uk: clockOutTime,
+          total_work_hhmm: dbWorkHours || minutesToHHMM(minutes),
+          total_work_minutes: minutes,
         };
       })
       .filter(Boolean);
@@ -124,7 +169,6 @@ exports.getDailySummary = async (req, res) => {
     records.forEach((rec) => {
       if (!rec.clock_out || !rec.clock_in || !rec.employee) return;
 
-      const dateKey = toUK(rec.clock_in).toFormat("yyyy-MM-dd");
       const empId = rec.employee_id;
       const key = `${empId}_${toUK(rec.clock_in).toFormat("dd-MM-yyyy")}`;
 
@@ -167,8 +211,8 @@ exports.getDailySummary = async (req, res) => {
         date: entry.date,
         first_clock_in: entry.firstIn.toFormat("HH:mm"),
         last_clock_out: entry.lastOut.toFormat("HH:mm"),
-        total_work_hours: minutesToHoursMinutes(entry.totalMinutes),
-        break_time: minutesToHoursMinutes(breakMinutes),
+        total_work_hours: minutesToHHMM(entry.totalMinutes),
+        break_time: minutesToHHMM(breakMinutes),
         sessions: entry.sessions,
       };
     });
@@ -228,7 +272,7 @@ exports.getDetailedSessions = async (req, res) => {
         type: "work",
         clock_in: clockInUK.toFormat("HH:mm"),
         clock_out: clockOutUK.toFormat("HH:mm"),
-        duration: minutesToHoursMinutes(duration),
+        duration: minutesToHHMM(duration),
         clock_in_full: clockInUK,
         clock_out_full: clockOutUK,
       };
@@ -252,10 +296,8 @@ exports.getDetailedSessions = async (req, res) => {
         if (breakMinutes > 0) {
           sessionsWithBreaks.push({
             type: "break",
-            duration: minutesToHoursMinutes(breakMinutes),
-            break_time: `${sessions[i].clock_out} - ${
-              sessions[i + 1].clock_in
-            }`,
+            duration: minutesToHHMM(breakMinutes),
+            break_time: `${sessions[i].clock_out} - ${sessions[i + 1].clock_in}`,
           });
         }
       }
@@ -265,18 +307,6 @@ exports.getDetailedSessions = async (req, res) => {
   } catch (err) {
     console.error("Detailed Sessions Error:", err);
     res.status(500).json({ error: "Failed to fetch detailed sessions" });
-  }
-};
-
-// ✅ DELETE Attendance
-exports.deleteAttendance = async (req, res) => {
-  try {
-    const attendance = await Attendance.findByPk(req.params.id);
-    if (!attendance) return res.status(404).json({ error: "Not found" });
-    await attendance.destroy();
-    res.json({ message: "Deleted" });
-  } catch (err) {
-    res.status(500).json({ error: "Delete failed" });
   }
 };
 
@@ -348,7 +378,6 @@ exports.exportCSV = async (req, res) => {
 // ✅ Export PDF
 const path = require("path");
 const fs = require("fs");
-// ... keep your other requires (PdfPrinter, Attendance, Employee, Op, toUK, computeTotalHours, etc.)
 
 exports.exportPDF = async (req, res) => {
   try {
@@ -374,16 +403,14 @@ exports.exportPDF = async (req, res) => {
       order: [["clock_in", "ASC"]],
     });
 
-    const robotoNormal = path.resolve(
-      process.cwd(),
-      "node_modules/pdfmake/fonts/Roboto-Regular.ttf",
-    );
-    const robotoBold = path.resolve(
-      process.cwd(),
-      "node_modules/pdfmake/fonts/Roboto-Medium.ttf",
-    );
-
-    const fonts = { Roboto: { normal: robotoNormal, bold: robotoBold } };
+    const fonts = {
+      Roboto: {
+        normal: Buffer.from(vfsFonts["Roboto-Regular.ttf"], "base64"),
+        bold: Buffer.from(vfsFonts["Roboto-Medium.ttf"], "base64"),
+        italics: Buffer.from(vfsFonts["Roboto-Italic.ttf"], "base64"),
+        bolditalics: Buffer.from(vfsFonts["Roboto-MediumItalic.ttf"], "base64"),
+      },
+    };
     const printer = new PdfPrinter(fonts);
 
     let grandTotalMinutes = 0;

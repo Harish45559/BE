@@ -1,14 +1,10 @@
 const { DateTime } = require("luxon");
 const { Op } = require("sequelize");
 const bcrypt = require("bcryptjs");
-
 const Attendance = require("../models/Attendance");
 const Employee = require("../models/Employee");
 
-/* ----------------------------- helpers ----------------------------- */
-
 const ukNow = () => DateTime.now().setZone("Europe/London");
-
 const toHHMM = (mins) => {
   const m = Math.max(0, Math.round(Number(mins) || 0));
   const h = Math.floor(m / 60);
@@ -16,39 +12,174 @@ const toHHMM = (mins) => {
   return `${String(h).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
 };
 
-const parseUTC = (val) => {
-  if (!val) return null;
-  if (val instanceof Date) return DateTime.fromJSDate(val, { zone: "utc" });
-  if (typeof val === "string") return DateTime.fromISO(val, { zone: "utc" });
-  return null;
-};
-
 /* -------- reusable work calculation (used everywhere) -------- */
-const calculateWork = (clockInISO, clockOutISO) => {
-  if (!clockInISO || !clockOutISO) {
+const calculateWork = (clockIn, clockOut) => {
+  if (!clockIn || !clockOut) {
     return { break_minutes: 0, total_work_hours: null };
   }
 
-  const ci = new Date(clockInISO);
-  const co = new Date(clockOutISO);
+  const ciISO = clockIn instanceof Date ? clockIn.toISOString() : clockIn;
+  const coISO = clockOut instanceof Date ? clockOut.toISOString() : clockOut;
 
-  const diffMinutes = Math.floor((co - ci) / 60000);
+  const ci = DateTime.fromISO(ciISO, { zone: "utc" });
+  const co = DateTime.fromISO(coISO, { zone: "utc" });
 
-  if (diffMinutes <= 0) {
-    return { break_minutes: 0, total_work_hours: "00:00" };
+  if (!ci.isValid || !co.isValid) {
+    return { break_minutes: 0, total_work_hours: null };
   }
 
+  const diffMinutes = Math.max(0, Math.floor(co.diff(ci, "minutes").minutes));
+
   const breakMinutes = diffMinutes >= 360 ? 30 : 0;
-
   const netMinutes = diffMinutes - breakMinutes;
-
-  const hours = Math.floor(netMinutes / 60);
-  const mins = netMinutes % 60;
 
   return {
     break_minutes: breakMinutes,
-    total_work_hours: `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`,
+    total_work_hours: toHHMM(netMinutes),
   };
+};
+
+/* --------------------------- manual entry -------------------------- */
+
+exports.manualEntry = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        error: "Only admin can perform manual entry",
+      });
+    }
+
+    const { employeeId, clock_in, clock_out } = req.body;
+
+    if (!employeeId) {
+      return res.status(400).json({
+        error: "employeeId is required",
+      });
+    }
+
+    const employee = await Employee.findByPk(employeeId);
+
+    if (!employee) {
+      return res.status(404).json({
+        error: "Employee not found",
+      });
+    }
+
+    if (!clock_in) {
+      return res.status(400).json({
+        error: "clock_in is required",
+      });
+    }
+
+    const ci = DateTime.fromISO(clock_in, { zone: "Europe/London" });
+    const co = clock_out
+      ? DateTime.fromISO(clock_out, { zone: "Europe/London" })
+      : null;
+
+    if (!ci.isValid) {
+      return res.status(400).json({
+        error: "Invalid clock_in format",
+      });
+    }
+
+    const result = calculateWork(
+      ci.toUTC().toISO(),
+      co ? co.toUTC().toISO() : null,
+    );
+
+    const record = await Attendance.create({
+      employee_id: employeeId,
+      clock_in: ci.toUTC().toISO(),
+      clock_out: co ? co.toUTC().toISO() : null,
+      clock_in_uk: ci.toFormat("dd/MM/yyyy HH:mm"),
+      clock_out_uk: co ? co.toFormat("dd/MM/yyyy HH:mm") : null,
+      break_minutes: result.break_minutes,
+      total_work_hours: result.total_work_hours,
+    });
+
+    res.json({
+      message: "Manual attendance recorded",
+      record,
+    });
+  } catch (err) {
+    console.error("Manual entry error:", err);
+
+    res.status(500).json({
+      error: "Manual attendance failed",
+    });
+  }
+};
+
+/* --------------------------- update entry -------------------------- */
+
+exports.updateAttendance = async (req, res) => {
+  try {
+    const { attendanceId, clock_in, clock_out } = req.body;
+
+    if (!attendanceId) {
+      return res.status(400).json({
+        error: "attendanceId is required",
+      });
+    }
+
+    const record = await Attendance.findByPk(attendanceId);
+
+    if (!record) {
+      return res.status(404).json({
+        error: "Attendance record not found",
+      });
+    }
+
+    if (clock_in) {
+      const ci = DateTime.fromISO(clock_in, { zone: "Europe/London" });
+
+      if (!ci.isValid) {
+        return res.status(400).json({
+          error: "Invalid clock_in format",
+        });
+      }
+
+      record.clock_in = ci.toUTC().toISO();
+      record.clock_in_uk = ci.toFormat("dd/MM/yyyy HH:mm");
+    }
+
+    if (clock_out) {
+      const co = DateTime.fromISO(clock_out, { zone: "Europe/London" });
+
+      if (!co.isValid) {
+        return res.status(400).json({
+          error: "Invalid clock_out format",
+        });
+      }
+
+      record.clock_out = co.toUTC().toISO();
+      record.clock_out_uk = co.toFormat("dd/MM/yyyy HH:mm");
+    }
+
+    if (new Date(record.clock_out) < new Date(record.clock_in)) {
+      return res.status(400).json({
+        error: "clock_out cannot be earlier than clock_in",
+      });
+    }
+
+    const result = calculateWork(record.clock_in, record.clock_out);
+
+    record.break_minutes = result.break_minutes;
+    record.total_work_hours = result.total_work_hours;
+
+    await record.save();
+
+    res.json({
+      message: "Attendance updated",
+      record,
+    });
+  } catch (err) {
+    console.error("Update attendance error:", err);
+
+    res.status(500).json({
+      error: "Failed to update attendance",
+    });
+  }
 };
 
 /* ------------------------------ clock in --------------------------- */
@@ -111,7 +242,11 @@ exports.clockIn = async (req, res) => {
 
     res.json({
       message: "Clock-in recorded",
-      attendance,
+      attendance: {
+        ...attendance.toJSON(),
+        clock_in: nowUTC.toISO(),
+        clock_in_uk: nowUK.toFormat("dd/MM/yyyy HH:mm"),
+      },
     });
   } catch (err) {
     console.error("Clock-in error:", err);
@@ -171,7 +306,11 @@ exports.clockOut = async (req, res) => {
     const nowUTC = DateTime.utc();
     const nowUK = ukNow();
 
-    const result = calculateWork(attendance.clock_in, nowUTC.toISO());
+    const clockInUKStr = attendance.clock_in_uk;
+    const ciUK = DateTime.fromFormat(clockInUKStr, "dd/MM/yyyy HH:mm", {
+      zone: "Europe/London",
+    });
+    const result = calculateWork(ciUK.toUTC().toISO(), nowUTC.toISO());
 
     attendance.clock_out = nowUTC.toISO();
     attendance.clock_out_uk = nowUK.toFormat("dd/MM/yyyy HH:mm");
@@ -182,7 +321,11 @@ exports.clockOut = async (req, res) => {
 
     res.json({
       message: "Clock-out recorded",
-      attendance,
+      attendance: {
+        ...attendance.toJSON(),
+        clock_out: nowUTC.toISO(),
+        clock_out_uk: nowUK.toFormat("dd/MM/yyyy HH:mm"),
+      },
     });
   } catch (err) {
     console.error("Clock-out error:", err);
@@ -214,14 +357,20 @@ exports.getAttendanceByDate = async (req, res) => {
       order: [["clock_in", "ASC"]],
     });
 
-    let dailyMinutes = 0;
-
     const items = rows.map((r) => {
-      const result = calculateWork(r.clock_in, r.clock_out);
+      const rawCI = r.getDataValue("clock_in");
+      const rawCO = r.getDataValue("clock_out");
+      const ciISO =
+        rawCI instanceof Date
+          ? DateTime.fromMillis(rawCI.getTime(), { zone: "utc" }).toISO()
+          : String(rawCI);
+      const coISO = rawCO
+        ? rawCO instanceof Date
+          ? DateTime.fromMillis(rawCO.getTime(), { zone: "utc" }).toISO()
+          : String(rawCO)
+        : null;
 
-      const mins = result.total_work_hours
-        ? result.break_minutes + 0 // placeholder safe calc
-        : 0;
+      const result = calculateWork(ciISO, coISO);
 
       return {
         ...r.toJSON(),
@@ -250,6 +399,26 @@ exports.getStatus = async (req, res) => {
       attributes: ["id"],
     });
 
+    const start = DateTime.now()
+      .setZone("Europe/London")
+      .startOf("day")
+      .toUTC()
+      .toJSDate();
+
+    const end = DateTime.now()
+      .setZone("Europe/London")
+      .endOf("day")
+      .toUTC()
+      .toJSDate();
+
+    const todayRecords = await Attendance.findAll({
+      attributes: ["employee_id", "clock_out"],
+      where: {
+        clock_in: { [Op.between]: [start, end] },
+      },
+    });
+
+    // ✅ Catch open sessions from ANY previous day
     const openSessions = await Attendance.findAll({
       attributes: ["employee_id"],
       where: {
@@ -257,11 +426,21 @@ exports.getStatus = async (req, res) => {
       },
     });
 
-    const openMap = new Set(openSessions.map((s) => s.employee_id));
+    const openSet = new Set();
+    const workedSet = new Set();
+
+    // ✅ Populate openSet from ALL open sessions (not just today's)
+    openSessions.forEach((rec) => {
+      openSet.add(rec.employee_id);
+    });
+
+    todayRecords.forEach((rec) => {
+      workedSet.add(rec.employee_id);
+    });
 
     const result = employees.map((emp) => ({
       id: emp.id,
-      status: openMap.has(emp.id) ? "Clocked In" : "Clocked Out",
+      status: openSet.has(emp.id) ? "Clocked In" : "Clocked Out",
     }));
 
     res.json(result);
@@ -274,126 +453,70 @@ exports.getStatus = async (req, res) => {
   }
 };
 
-/* --------------------------- manual entry -------------------------- */
+/* ----------------------- dashboard with status --------------------- */
 
-exports.manualEntry = async (req, res) => {
+exports.getEmployeesWithStatus = async (req, res) => {
   try {
-    const { employeeId, clock_in, clock_out } = req.body;
-
-    if (!clock_in) {
-      return res.status(400).json({
-        error: "clock_in is required",
-      });
-    }
-
-    const ci = DateTime.fromISO(clock_in, { zone: "utc" });
-    const co = clock_out ? DateTime.fromISO(clock_out, { zone: "utc" }) : null;
-
-    if (!ci.isValid) {
-      return res.status(400).json({
-        error: "Invalid clock_in format",
-      });
-    }
-
-    const result = calculateWork(ci.toISO(), co ? co.toISO() : null);
-
-    const record = await Attendance.create({
-      employee_id: employeeId,
-      clock_in: ci.toISO(),
-      clock_out: co ? co.toISO() : null,
-      clock_in_uk: ci.setZone("Europe/London").toFormat("dd/MM/yyyy HH:mm"),
-      clock_out_uk: co
-        ? co.setZone("Europe/London").toFormat("dd/MM/yyyy HH:mm")
-        : null,
-      break_minutes: result.break_minutes,
-      total_work_hours: result.total_work_hours,
+    const employees = await Employee.findAll({
+      attributes: ["id", "first_name", "last_name"],
     });
 
-    res.json({
-      message: "Manual attendance recorded",
-      record,
+    const start = DateTime.now()
+      .setZone("Europe/London")
+      .startOf("day")
+      .toUTC()
+      .toJSDate();
+
+    const end = DateTime.now()
+      .setZone("Europe/London")
+      .endOf("day")
+      .toUTC()
+      .toJSDate();
+
+    const todayRecords = await Attendance.findAll({
+      attributes: ["employee_id", "clock_out"],
+      where: {
+        clock_in: { [Op.between]: [start, end] },
+      },
     });
+
+    // ✅ Catch open sessions from ANY previous day (e.g. clocked in yesterday, never clocked out)
+    const openSessions = await Attendance.findAll({
+      attributes: ["employee_id"],
+      where: {
+        clock_out: { [Op.is]: null },
+      },
+    });
+
+    const openSet = new Set();
+    const workedSet = new Set();
+
+    // ✅ Populate openSet from ALL open sessions (not just today's)
+    openSessions.forEach((rec) => {
+      openSet.add(rec.employee_id);
+    });
+
+    // Today's records drive the "Clocked Out" status
+    todayRecords.forEach((rec) => {
+      workedSet.add(rec.employee_id);
+    });
+
+    const result = employees.map((emp) => ({
+      id: emp.id,
+      first_name: emp.first_name,
+      last_name: emp.last_name,
+      attendance_status: openSet.has(emp.id)
+        ? "Clocked In"
+        : workedSet.has(emp.id)
+          ? "Clocked Out"
+          : "Not Clocked In",
+    }));
+
+    res.json(result);
   } catch (err) {
-    console.error("Manual entry error:", err);
-
+    console.error("Dashboard fetch error:", err);
     res.status(500).json({
-      error: "Manual attendance failed",
-    });
-  }
-};
-
-/* --------------------------- update entry -------------------------- */
-
-exports.updateAttendance = async (req, res) => {
-  try {
-    const { attendanceId, clock_in, clock_out } = req.body;
-
-    if (!attendanceId) {
-      return res.status(400).json({
-        error: "attendanceId is required",
-      });
-    }
-
-    const record = await Attendance.findByPk(attendanceId);
-
-    if (!record) {
-      return res.status(404).json({
-        error: "Attendance record not found",
-      });
-    }
-
-    if (clock_in) {
-      const ci = DateTime.fromISO(clock_in, { zone: "utc" });
-
-      if (!ci.isValid) {
-        return res.status(400).json({
-          error: "Invalid clock_in format",
-        });
-      }
-
-      record.clock_in = ci.toISO();
-      record.clock_in_uk = ci
-        .setZone("Europe/London")
-        .toFormat("dd/MM/yyyy HH:mm");
-    }
-
-    if (clock_out) {
-      const co = DateTime.fromISO(clock_out, { zone: "utc" });
-
-      if (!co.isValid) {
-        return res.status(400).json({
-          error: "Invalid clock_out format",
-        });
-      }
-
-      record.clock_out = co.toISO();
-      record.clock_out_uk = co
-        .setZone("Europe/London")
-        .toFormat("dd/MM/yyyy HH:mm");
-    }
-
-    if (new Date(record.clock_out) < new Date(record.clock_in)) {
-      return res.status(400).json({
-        error: "clock_out cannot be earlier than clock_in",
-      });
-    }
-
-    const result = calculateWork(record.clock_in, record.clock_out);
-
-    record.break_minutes = result.break_minutes;
-    record.total_work_hours = result.total_work_hours;
-
-    await record.save();
-
-    res.json({
-      message: "Attendance updated",
-      record,
-    });
-  } catch (err) {
-    console.error("Update attendance error:", err);
-
-    res.status(500).json({
-      error: "Failed to update attendance",
+      error: "Failed to fetch attendance dashboard",
     });
   }
 };
