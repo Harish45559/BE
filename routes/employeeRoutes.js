@@ -6,17 +6,24 @@ const {
   addEmployee,
   editEmployee,
   deleteEmployee,
+  getMyProfile, // 👈 added
 } = require("../controllers/employeeController");
 
 const authMiddleware = require("../middleware/auth");
+const { requireAdmin } = require("../middleware/role");
 
-// 🔒 Apply auth to ALL routes in this file
+// 🔐 All routes require login
 router.use(authMiddleware);
 
-// 📌 Routes
-router.get("/", listEmployees);
-router.post("/", addEmployee);
-router.put("/:id", editEmployee);
-router.delete("/:id", deleteEmployee);
+// 👤 Logged-in user can view own profile
+router.get("/me", getMyProfile);
+
+// 📋 Admin-only: view all employees
+router.get("/", requireAdmin, listEmployees);
+
+// 🔒 Admin-only routes
+router.post("/", requireAdmin, addEmployee);
+router.put("/:id", requireAdmin, editEmployee);
+router.delete("/:id", requireAdmin, deleteEmployee);
 
 module.exports = router;

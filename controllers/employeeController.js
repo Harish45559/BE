@@ -94,7 +94,10 @@ exports.addEmployee = async (req, res) => {
       });
     }
 
-    const newEmp = await Employee.create({ ...data });
+    const newEmp = await Employee.create({
+      ...data,
+      role: data.role || "employee", // ✅ ensure role is stored
+    });
 
     const { password: _p, pin: _pin, ...safeEmp } = newEmp.toJSON();
     res.status(201).json({
@@ -225,5 +228,17 @@ exports.getEmployee = async (req, res) => {
   } catch (err) {
     console.error("Get Employee Error:", err);
     res.status(500).json({ error: "Error fetching employee" });
+  }
+};
+
+exports.getMyProfile = async (req, res) => {
+  try {
+    const user = await Employee.findByPk(req.user.id, {
+      attributes: { exclude: ["password", "pin"] },
+    });
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: "Error fetching profile" });
   }
 };

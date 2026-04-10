@@ -5,25 +5,31 @@ const rateLimit = require("express-rate-limit");
 const { body, validationResult } = require("express-validator");
 const authController = require("../controllers/authController");
 
+const isTest = process.env.NODE_ENV === "test";
+
 // Rate limiter for login — max 10 requests per 15 minutes per IP
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: { error: "Too many requests, please try again later" },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const authLimiter = isTest
+  ? (_req, _res, next) => next()
+  : rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 10,
+      message: { error: "Too many requests, please try again later" },
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
 
 // Stricter limiter for forgot-password
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5,
-  message: {
-    error: "Too many password reset attempts, please try again later",
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const forgotPasswordLimiter = isTest
+  ? (_req, _res, next) => next()
+  : rateLimit({
+      windowMs: 60 * 60 * 1000, // 1 hour
+      max: 5,
+      message: {
+        error: "Too many password reset attempts, please try again later",
+      },
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
 
 // Validation for /login
 const validateLogin = [

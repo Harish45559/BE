@@ -2,6 +2,17 @@ const request = require("supertest");
 const app = require("../app");
 
 // ──────────────────────────────────────────────
+// GET /health
+// ──────────────────────────────────────────────
+describe("GET /health", () => {
+  test("returns 200 and status ok", async () => {
+    const res = await request(app).get("/health");
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("status", "ok");
+  });
+});
+
+// ──────────────────────────────────────────────
 // POST /api/auth/login
 // ──────────────────────────────────────────────
 describe("POST /api/auth/login", () => {
@@ -58,5 +69,48 @@ describe("POST /api/auth/login", () => {
 
     expect(res.statusCode).toBe(400);
     expect(Array.isArray(res.body.errors)).toBe(true);
+  });
+});
+
+// ──────────────────────────────────────────────
+// POST /api/auth/forgot-password
+// ──────────────────────────────────────────────
+describe("POST /api/auth/forgot-password", () => {
+  test("returns 403 when trying to reset admin password", async () => {
+    const res = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ username: "admin", newPassword: "newpassword123" });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toBe("Admin reset not allowed");
+  });
+
+  test("returns 400 when username is missing", async () => {
+    const res = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ newPassword: "newpassword123" });
+
+    expect(res.statusCode).toBe(400);
+    expect(Array.isArray(res.body.errors)).toBe(true);
+    expect(res.body.errors.some((e) => e.path === "username")).toBe(true);
+  });
+
+  test("returns 400 when newPassword is missing", async () => {
+    const res = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ username: "someuser" });
+
+    expect(res.statusCode).toBe(400);
+    expect(Array.isArray(res.body.errors)).toBe(true);
+    expect(res.body.errors.some((e) => e.path === "newPassword")).toBe(true);
+  });
+
+  test("returns 404 for non-existent user", async () => {
+    const res = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ username: "nonexistentuser999", newPassword: "newpassword123" });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body.message).toBe("User not found");
   });
 });
