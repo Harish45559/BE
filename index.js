@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const db = require("./config/db");
-const { Admin } = require("./models");
+const { Employee } = require("./models");
 const app = require("./app");
 
 /* ================= DATABASE + SERVER START ================= */
@@ -9,10 +9,10 @@ db.sync({ force: false })
   .then(async () => {
     console.log("✅ PostgreSQL synced");
 
-    /* ===== SAFE ADMIN SEED (PRODUCTION SAFE) ===== */
+    /* ===== ADMIN SEED (USING EMPLOYEE TABLE) ===== */
 
     if (process.env.ADMIN_DEFAULT_PASSWORD) {
-      const existingAdmin = await Admin.findOne({
+      const existingAdmin = await Employee.findOne({
         where: { username: "admin" },
       });
 
@@ -22,12 +22,23 @@ db.sync({ force: false })
           10,
         );
 
-        await Admin.create({
+        await Employee.create({
+          first_name: "System",
+          last_name: "Admin",
           username: "admin",
           password: hashedPassword,
+          role: "admin", // ✅ KEY CHANGE
+          email: "admin@system.com",
+          phone: "9999999999",
+          address: "System",
+          gender: "other",
+          dob: "2000-01-01",
+          joining_date: "2000-01-01",
+          brp: "ADMIN001",
+          pin: "1234", // will be hashed by model
         });
 
-        console.log("✅ Admin user created from environment variable");
+        console.log("✅ Admin user created in Employee table");
       } else {
         console.log("ℹ️ Admin already exists, skipping seed");
       }

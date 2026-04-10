@@ -2,7 +2,7 @@ const sequelize = require("../config/db");
 const { DataTypes } = require("sequelize");
 
 // Models
-const Admin = require("./Admin");
+
 const Employee = require("./Employee");
 const Attendance = require("./Attendance");
 const Category = require("./Category");
@@ -22,7 +22,7 @@ MenuItem.belongsTo(Category, { foreignKey: "categoryId" });
 
 module.exports = {
   sequelize,
-  Admin,
+
   Employee,
   Attendance,
   Category,

@@ -1,66 +1,36 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const { Employee, Admin } = require("../models");
+const { Employee } = require("../models");
 
-// Utility: generate token
-const generateToken = (user, role) => {
+// 🔐 Generate token
+const generateToken = (user) => {
   return jwt.sign(
     {
       id: user.id,
       username: user.username,
-      role: role,
+      role: user.role,
     },
     process.env.JWT_SECRET,
     { expiresIn: "1d" },
   );
 };
 
-// ✅ Improved Login
+// ✅ LOGIN
 exports.login = async (req, res) => {
   try {
     let { username, password } = req.body || {};
 
-    // Normalize inputs
     username = username?.trim();
 
-    // Field-level validation
-    const errors = {};
-    if (!username) errors.username = "Username is required";
-    if (!password) errors.password = "Password is required";
-
-    if (Object.keys(errors).length > 0) {
+    if (!username || !password) {
       return res.status(400).json({
         success: false,
-        errors,
+        message: "Username and password required",
       });
     }
 
-    let user = null;
-    let role = null;
+    const user = await Employee.findOne({ where: { username } });
 
-    // Admin check
-    const admin = await Admin.findOne({ where: { username } });
-    if (admin) {
-      const isMatch = await bcrypt.compare(password, admin.password);
-      if (isMatch) {
-        user = admin;
-        role = "admin";
-      }
-    }
-
-    // Employee check
-    if (!user) {
-      const employee = await Employee.findOne({ where: { username } });
-      if (employee) {
-        const isMatch = await bcrypt.compare(password, employee.password);
-        if (isMatch) {
-          user = employee;
-          role = "employee";
-        }
-      }
-    }
-
-    // ✅ Prevent user enumeration
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -68,42 +38,49 @@ exports.login = async (req, res) => {
       });
     }
 
-    const token = generateToken(user, role);
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials",
+      });
+    }
+
+    const token = generateToken(user);
 
     return res.status(200).json({
       success: true,
       token,
       username: user.username,
-      role,
+      role: user.role,
     });
   } catch (err) {
-    console.error("Login error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-// ✅ Secure Forgot Password (basic version)
+// 🔐 FORGOT PASSWORD (SAFE VERSION)
 exports.forgotPassword = async (req, res) => {
   try {
     let { username, newPassword } = req.body || {};
 
     username = username?.trim();
 
-    const errors = {};
-    if (!username) errors.username = "Username is required";
-    if (!newPassword) errors.newPassword = "New password is required";
-
-    if (Object.keys(errors).length > 0) {
-      return res.status(400).json({ errors });
+    // 🚫 BLOCK ADMIN RESET
+    if (username === "admin") {
+      return res.status(403).json({
+        message: "Admin reset not allowed",
+      });
     }
 
-    let user = await Admin.findOne({ where: { username } });
-    if (!user) {
-      user = await Employee.findOne({ where: { username } });
+    if (!username || !newPassword) {
+      return res.status(400).json({
+        message: "Username and new password required",
+      });
     }
+
+    const user = await Employee.findOne({ where: { username } });
 
     if (!user) {
       return res.status(404).json({
@@ -111,17 +88,15 @@ exports.forgotPassword = async (req, res) => {
       });
     }
 
-    // ⚠️ NOTE: In real systems, require OTP/email verification here
-    user.password = await bcrypt.hash(newPassword, 10);
+    // ✅ Let model handle hashing
+    user.password = newPassword;
+
     await user.save();
 
     return res.status(200).json({
       message: "Password updated successfully",
     });
   } catch (err) {
-    console.error("Forgot password error:", err);
-    return res.status(500).json({
-      message: "Server error",
-    });
+    res.status(500).json({ message: "Server error" });
   }
 };

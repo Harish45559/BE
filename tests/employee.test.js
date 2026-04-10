@@ -2,6 +2,7 @@ const request = require("supertest");
 const app = require("../app");
 
 let adminToken;
+let employeeToken; // non-admin token for role tests
 let createdEmployeeId; // shared between create → edit → delete tests
 
 const testEmployee = {
@@ -49,6 +50,35 @@ describe("Auth guard on employee routes", () => {
   test("DELETE /api/employees/1 returns 401 without token", async () => {
     const res = await request(app).delete("/api/employees/1");
     expect(res.statusCode).toBe(401);
+  });
+
+  test("GET /api/employees/me returns 401 without token", async () => {
+    const res = await request(app).get("/api/employees/me");
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+// ──────────────────────────────────────────────
+// GET /api/employees/me
+// ──────────────────────────────────────────────
+describe("GET /api/employees/me", () => {
+  test("returns 200 and logged-in user profile", async () => {
+    const res = await request(app)
+      .get("/api/employees/me")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("username");
+  });
+
+  test("response does not include password or pin", async () => {
+    const res = await request(app)
+      .get("/api/employees/me")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).not.toHaveProperty("password");
+    expect(res.body).not.toHaveProperty("pin");
   });
 });
 
@@ -152,6 +182,12 @@ describe("POST /api/employees — create", () => {
     expect(res.body.employee).not.toHaveProperty("pin");
 
     createdEmployeeId = res.body.employee.id; // save for next tests
+
+    // Login as the new employee to get a non-admin token
+    const loginRes = await request(app)
+      .post("/api/auth/login")
+      .send({ username: testEmployee.username, password: testEmployee.password });
+    employeeToken = loginRes.body.token;
   });
 
   test("returns 400 when email already exists", async () => {
@@ -200,6 +236,39 @@ describe("PUT /api/employees/:id", () => {
     expect(res.body.employee.first_name).toBe("Updated");
     expect(res.body.employee).not.toHaveProperty("password");
     expect(res.body.employee).not.toHaveProperty("pin");
+  });
+});
+
+// ──────────────────────────────────────────────
+// requireAdmin — 403 for non-admin role
+// ──────────────────────────────────────────────
+describe("requireAdmin — employee role gets 403", () => {
+  test("GET /api/employees returns 403 for employee role", async () => {
+    const res = await request(app)
+      .get("/api/employees")
+      .set("Authorization", `Bearer ${employeeToken}`);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toBe("Admin only");
+  });
+
+  test("POST /api/employees returns 403 for employee role", async () => {
+    const res = await request(app)
+      .post("/api/employees")
+      .set("Authorization", `Bearer ${employeeToken}`)
+      .send(testEmployee);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toBe("Admin only");
+  });
+
+  test("DELETE /api/employees/:id returns 403 for employee role", async () => {
+    const res = await request(app)
+      .delete(`/api/employees/${createdEmployeeId}`)
+      .set("Authorization", `Bearer ${employeeToken}`);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toBe("Admin only");
   });
 });
 

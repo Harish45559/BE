@@ -32,16 +32,24 @@ const Employee = sequelize.define(
 
 // ✅ Hashing
 Employee.beforeCreate(async (emp) => {
-  if (!emp.password.startsWith("$2a$")) {
+  if (!emp.password.startsWith("$2")) {
     emp.password = await bcrypt.hash(emp.password, 10);
   }
-  if (!emp.pin.startsWith("$2a$")) {
+  if (!emp.pin.startsWith("$2")) {
     emp.pin = await bcrypt.hash(emp.pin, 10);
   }
 });
 
 Employee.beforeUpdate(async (emp) => {
-  if (emp.changed("password") && !emp.password.startsWith("$2a$")) {
+  if (emp.changed("password") && !emp.password.startsWith("$2")) {
+    emp.password = await bcrypt.hash(emp.password, 10);
+  }
+  if (emp.changed("pin") && !emp.pin.startsWith("$2")) {
+    emp.pin = await bcrypt.hash(emp.pin, 10);
+  }
+});
+Employee.beforeUpdate(async (emp) => {
+  if (emp.changed("password") && !emp.password.startsWith("$2")) {
     emp.password = await bcrypt.hash(emp.password, 10);
   }
   if (emp.changed("pin") && !emp.pin.startsWith("$2a$")) {
