@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(curl -L -A \"Mozilla/4.0\" -o \"c:/Users/haris/Desktop/attendance_be_production/node_modules/pdfmake/fonts/Roboto-Regular.ttf\" \"https://fonts.gstatic.com/s/roboto/v18/Syvl-cr1Wwqx0AnV7yRS.ttf\")",
-      "Bash(curl -L -A \"Mozilla/4.0\" -o \"c:/Users/haris/Desktop/attendance_be_production/node_modules/pdfmake/fonts/Roboto-Medium.ttf\" \"https://fonts.gstatic.com/s/roboto/v18/RxZJdnzeo3R5zSexge8UUVtXRa8TVwTICgirnJhmVJw.ttf\")"
+      "Bash(curl -L -A \"Mozilla/4.0\" -o \"c:/Users/haris/Desktop/attendance_be_production/node_modules/pdfmake/fonts/Roboto-Medium.ttf\" \"https://fonts.gstatic.com/s/roboto/v18/RxZJdnzeo3R5zSexge8UUVtXRa8TVwTICgirnJhmVJw.ttf\")",
+      "Bash(python -m pytest --collect-only)"
     ]
   }
 }
