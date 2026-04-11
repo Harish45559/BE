@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "dev:test": "cross-env NODE_ENV=test nodemon index.js",
     "build": "echo 'no build needed'",
     "test": "cross-env NODE_ENV=test jest --testTimeout=10000 --forceExit"
   },
