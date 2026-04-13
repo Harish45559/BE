@@ -273,8 +273,8 @@ exports.servePagerPage = (req, res) => {
       src.connect(audioCtx.destination);
       src.start(0);
 
-      // Unlock vibration with a tiny test pulse
-      if (navigator.vibrate) navigator.vibrate(1);
+      // Unlock vibration with a real pulse on the user gesture — required by Chrome Android
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
 
       document.getElementById('activate-overlay').style.display = 'none';
       document.getElementById('main-card').style.display = 'block';
@@ -301,20 +301,23 @@ exports.servePagerPage = (req, res) => {
     }
 
     function vibratePhone() {
-      // Vibration requires HTTPS on Chrome Android — try anyway, fallback is visual flash
-      try { if (navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 600]); } catch(e) {}
+      if (!navigator.vibrate) return false;
+      try {
+        // Long aggressive pattern: on-off-on-off-on  (ms)
+        return navigator.vibrate([600, 150, 600, 150, 600, 150, 1000]);
+      } catch(e) { return false; }
     }
 
     function flashScreen() {
-      // Strong visual alert — flashes the whole screen green, works on all browsers/HTTP
+      // Strong visual alert — flashes the whole screen green
       var flash = document.createElement('div');
       flash.style.cssText = 'position:fixed;inset:0;background:#22c55e;z-index:9999;pointer-events:none;';
       document.body.appendChild(flash);
       var count = 0;
       var interval = setInterval(function() {
-        flash.style.opacity = flash.style.opacity === '0' ? '0.85' : '0';
-        if (++count >= 10) { clearInterval(interval); document.body.removeChild(flash); }
-      }, 200);
+        flash.style.opacity = flash.style.opacity === '0' ? '0.9' : '0';
+        if (++count >= 14) { clearInterval(interval); if (flash.parentNode) document.body.removeChild(flash); }
+      }, 180);
     }
 
     async function checkStatus() {
@@ -347,18 +350,22 @@ exports.servePagerPage = (req, res) => {
       document.getElementById('ready-customer-name').textContent = data.customerName;
       document.getElementById('ready-section').style.display = 'block';
 
-      // Sound + vibration + visual flash (flash works even when vibration is blocked on HTTP)
+      // First burst: sound + flash immediately
       playBuzzer();
-      vibratePhone();
       flashScreen();
+      vibratePhone();
 
-      var count = 0;
-      var repeat = setInterval(function() {
-        count++;
-        playBuzzer();
+      // Keep retrying vibration every 1.5 s for 12 s total.
+      // This catches the case where the phone screen was off and comes back on
+      // (Chrome Android stops vibrating when the screen is off, resumes when lit).
+      var vibAttempts = 0;
+      var vibRetry = setInterval(function() {
+        vibAttempts++;
         vibratePhone();
-        if (count >= 2) clearInterval(repeat);
-      }, 1400);
+        // Also repeat sound on 2nd and 4th attempt so it feels urgent
+        if (vibAttempts === 2 || vibAttempts === 4) playBuzzer();
+        if (vibAttempts >= 8) clearInterval(vibRetry);
+      }, 1500);
     }
   </script>
 </body>
