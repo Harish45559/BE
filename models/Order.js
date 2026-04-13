@@ -16,9 +16,10 @@ module.exports = (sequelize, DataTypes) => {
     covers: DataTypes.STRING,
 
     order_number: {
-      type: DataTypes.BIGINT,
+      type: DataTypes.STRING(20),
       allowNull: false,
       unique: true,
+      comment: 'Format: DDMM-NNN (e.g. 1304-001). Resets daily.'
     },
 
     items: {
@@ -60,7 +61,20 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
       comment: 'Stored as formatted UK time (dd/MM/yyyy HH:mm:ss)'
-    }
+    },
+
+    pager_token: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+    },
+
+    pager_status: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+      comment: 'null = no pager, waiting = customer waiting, ready = food ready'
+    },
   }, {
     timestamps: false,
     tableName: 'orders'

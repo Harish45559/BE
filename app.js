@@ -55,6 +55,8 @@ const categoryRoutes = require("./routes/categoryRoutes");
 const menuRoutes = require("./routes/menuRoutes");
 const salesRoutes = require("./routes/salesRoutes");
 const tillRoutes = require("./routes/tillRoutes");
+const pagerRoutes = require("./routes/pagerRoutes");
+const { servePagerPage } = require("./controllers/pagerController");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/employees", employeeRoutes);
@@ -65,6 +67,13 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/till", tillRoutes);
+app.use("/api/pager", pagerRoutes);
+
+/* ================= STATIC PUBLIC ASSETS ================= */
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+/* ================= PAGER — public customer page ================= */
+app.get("/pager/:token", servePagerPage);
 
 /* ================= HEALTH CHECK ================= */
 app.get("/health", (req, res) => res.json({ status: "ok" }));

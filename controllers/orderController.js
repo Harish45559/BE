@@ -63,19 +63,25 @@ exports.placeOrder = async (req, res) => {
       .setZone("Europe/London")
       .toFormat("dd/MM/yyyy HH:mm:ss");
 
-    // Get next order number
-    const orders = await Order.findAll({
-      attributes: ["order_number"],
-      order: [["order_number", "DESC"]],
-      limit: 1,
-    });
+    // Build today's date prefix in UK time: DDMM (e.g. "1304" for 13 April)
+    const today = DateTime.now().setZone("Europe/London");
+    const prefix = today.toFormat("ddMM");
 
-    let nextOrderNumber = 1001;
-    if (orders.length && orders[0].order_number) {
-      nextOrderNumber = parseInt(orders[0].order_number, 10) + 1;
+    // Generate a unique random 4-char alphanumeric suffix (A-Z, 0-9)
+    const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const randomSuffix = () =>
+      Array.from({ length: 4 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join("");
+
+    // Retry until unique (collision is astronomically unlikely but handle it anyway)
+    let orderNum;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const candidate = `${prefix}-${randomSuffix()}`;
+      const existing = await Order.findOne({ where: { order_number: candidate } });
+      if (!existing) { orderNum = candidate; break; }
     }
+    if (!orderNum) throw new Error("Could not generate unique order number");
 
-    orderData.order_number = nextOrderNumber;
+    orderData.order_number = orderNum;
 
     const order = await Order.create(orderData);
 
