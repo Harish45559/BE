@@ -26,6 +26,7 @@
     "pdfmake": "^0.2.20",
     "pg": "^8.14.1",
     "pg-hstore": "^2.3.4",
+    "qrcode": "^1.5.4",
     "sequelize": "^6.37.7"
   },
   "devDependencies": {
