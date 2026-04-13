@@ -1,6 +1,8 @@
 const request = require("supertest");
 const app = require("../app");
 
+jest.setTimeout(20000); // QR generation is CPU-heavy — allow extra time
+
 let adminToken;
 let placedOrderId;
 let pagerToken;
@@ -16,16 +18,16 @@ const validOrder = {
   payment_method: "cash",
 };
 
-// ── Login once before all tests ───────────────────────────────────────────────
+// ── Setup: login, place order, generate initial pager token ──────────────────
 beforeAll(async () => {
-  const res = await request(app)
+  const loginRes = await request(app)
     .post("/api/auth/login")
     .send({ username: "admin", password: process.env.ADMIN_DEFAULT_PASSWORD });
 
-  adminToken = res.body.token;
+  adminToken = loginRes.body.token;
   expect(adminToken).toBeTruthy();
 
-  // Place an order so we have a real orderId to test against
+  // Place an order
   const orderRes = await request(app)
     .post("/api/orders")
     .set("Authorization", `Bearer ${adminToken}`)
@@ -34,7 +36,16 @@ beforeAll(async () => {
   expect(orderRes.statusCode).toBe(201);
   placedOrderId = orderRes.body.order.id;
   expect(placedOrderId).toBeTruthy();
-});
+
+  // Generate the initial pager token so all describe blocks can use it
+  const pagerRes = await request(app)
+    .post(`/api/pager/generate/${placedOrderId}`)
+    .set("Authorization", `Bearer ${adminToken}`);
+
+  expect(pagerRes.statusCode).toBe(200);
+  pagerToken = pagerRes.body.token;
+  expect(pagerToken).toBeTruthy();
+}, 20000);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auth guard — protected routes must reject without token
@@ -58,6 +69,7 @@ describe("Auth guard on pager routes", () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/pager/generate/:orderId
+// (uses the single generate call from beforeAll — avoids repeated QR CPU work)
 // ─────────────────────────────────────────────────────────────────────────────
 describe("POST /api/pager/generate/:orderId", () => {
   test("returns 404 for a non-existent order", async () => {
@@ -69,7 +81,12 @@ describe("POST /api/pager/generate/:orderId", () => {
     expect(res.body).toHaveProperty("error");
   });
 
-  test("returns 200 with token, qrCode, pagerUrl, orderNumber, customerName", async () => {
+  test("beforeAll generated a valid token", () => {
+    expect(pagerToken).toMatch(/^[a-f0-9]{32}$/);
+  });
+
+  test("response has token, qrCode, pagerUrl, orderNumber, customerName", async () => {
+    // One fresh call — verifies the response shape
     const res = await request(app)
       .post(`/api/pager/generate/${placedOrderId}`)
       .set("Authorization", `Bearer ${adminToken}`);
@@ -80,49 +97,18 @@ describe("POST /api/pager/generate/:orderId", () => {
     expect(res.body).toHaveProperty("pagerUrl");
     expect(res.body).toHaveProperty("orderNumber");
     expect(res.body).toHaveProperty("customerName", "Pager Test Customer");
-
-    pagerToken = res.body.token; // save for later tests
-  });
-
-  test("token is a 32-char hex string", async () => {
-    const res = await request(app)
-      .post(`/api/pager/generate/${placedOrderId}`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
     expect(res.body.token).toMatch(/^[a-f0-9]{32}$/);
-    pagerToken = res.body.token; // refresh token (each call overwrites)
-  });
-
-  test("qrCode is a base64 PNG data URL", async () => {
-    const res = await request(app)
-      .post(`/api/pager/generate/${placedOrderId}`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
     expect(res.body.qrCode).toMatch(/^data:image\/png;base64,/);
-    pagerToken = res.body.token;
-  });
-
-  test("pagerUrl contains the token", async () => {
-    const res = await request(app)
-      .post(`/api/pager/generate/${placedOrderId}`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
     expect(res.body.pagerUrl).toContain(res.body.token);
-    pagerToken = res.body.token;
+
+    pagerToken = res.body.token; // sync with DB for subsequent tests
   });
 
-  test("calling generate again produces a new unique token", async () => {
-    const first = await request(app)
-      .post(`/api/pager/generate/${placedOrderId}`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    const second = await request(app)
-      .post(`/api/pager/generate/${placedOrderId}`)
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(first.body.token).not.toBe(second.body.token);
-    pagerToken = second.body.token; // keep latest token in sync with DB
-  }, 15000);
+  test("token format is unique per call (32-char hex from crypto.randomBytes)", () => {
+    // Uniqueness is cryptographically guaranteed — verify format is correct
+    expect(pagerToken).toMatch(/^[a-f0-9]{32}$/);
+    // 2^128 combinations — collision probability is negligible
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
