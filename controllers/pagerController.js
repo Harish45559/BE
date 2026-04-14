@@ -54,6 +54,23 @@ exports.getPagerStatus = async (req, res) => {
 };
 
 /**
+ * PUT /api/pager/complete/:token
+ * Staff: mark the order as fully delivered — stops customer polling.
+ */
+exports.completeOrder = async (req, res) => {
+  try {
+    const order = await Order.findOne({ where: { pager_token: req.params.token } });
+    if (!order) return res.status(404).json({ error: 'Invalid pager token' });
+
+    await order.update({ pager_status: 'done' });
+    res.json({ message: 'Order completed', orderNumber: order.order_number });
+  } catch (err) {
+    console.error('❌ Complete order error:', err);
+    res.status(500).json({ error: 'Failed to complete order' });
+  }
+};
+
+/**
  * PUT /api/pager/mark-ready/:token
  * Staff: mark the order as ready — customer's phone will notify them.
  */
@@ -255,6 +272,18 @@ exports.servePagerPage = (req, res) => {
       </div>
     </div>
 
+    <!-- Done / all items delivered -->
+    <div id="done-section" style="display:none;">
+      <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border-radius:16px;padding:24px 20px;margin-bottom:18px;animation:pop 0.5s cubic-bezier(0.34,1.56,0.64,1);">
+        <div style="font-size:3rem;margin-bottom:10px;">✅</div>
+        <h2 style="font-size:1.4rem;font-weight:800;">All done — enjoy your meal!</h2>
+        <p style="font-size:0.9rem;opacity:0.9;margin-top:6px;">All your items have been delivered. Thank you for visiting Mirchi Mafia!</p>
+      </div>
+      <div class="order-info">
+        <p>Order <span id="done-order-number"></span> &nbsp;·&nbsp; <span id="done-customer-name"></span></p>
+      </div>
+    </div>
+
     <div id="error-msg" class="error-msg"></div>
   </div>
 
@@ -336,6 +365,13 @@ exports.servePagerPage = (req, res) => {
         document.getElementById('customer-name').textContent = data.customerName;
         document.getElementById('order-info').style.display = 'block';
 
+        // Staff marked all items delivered — show thank you, stop polling
+        if (data.status === 'done') {
+          clearInterval(pollInterval);
+          showDone(data);
+          return;
+        }
+
         // Buzz every time ring_count increases (supports multiple rings per order)
         if (data.status === 'ready' && (data.ringCount || 0) > lastSeenRingCount) {
           lastSeenRingCount = data.ringCount || 1;
@@ -345,6 +381,14 @@ exports.servePagerPage = (req, res) => {
       } catch (err) {
         document.getElementById('error-msg').textContent = 'Connection issue — retrying…';
       }
+    }
+
+    function showDone(data) {
+      document.getElementById('waiting-section').style.display = 'none';
+      document.getElementById('ready-section').style.display = 'none';
+      document.getElementById('done-order-number').textContent = '#' + data.orderNumber;
+      document.getElementById('done-customer-name').textContent = data.customerName;
+      document.getElementById('done-section').style.display = 'block';
     }
 
     function showReady(data) {
