@@ -57,6 +57,22 @@ async function runMigrations() {
       console.error("⚠️  Migration pager_status failed:", err.message);
     }
   }
+
+  // 4. ring_count column (multi-buzz support)
+  try {
+    await qi.addColumn("orders", "ring_count", {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+    });
+    console.log("✅ Migration: ring_count column added");
+  } catch (err) {
+    if (err.message.includes("already exists")) {
+      console.log("ℹ️  Migration: ring_count already exists — skipped");
+    } else {
+      console.error("⚠️  Migration ring_count failed:", err.message);
+    }
+  }
 }
 
 /* ================= DATABASE + SERVER START ================= */

@@ -75,6 +75,13 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: null,
       comment: 'null = no pager, waiting = customer waiting, ready = food ready'
     },
+
+    ring_count: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Incremented each time staff marks the order ready — allows multiple buzzes per order'
+    },
   }, {
     timestamps: false,
     tableName: 'orders'
