@@ -234,7 +234,7 @@ exports.servePagerPage = (req, res) => {
   <div id="activate-overlay">
     <img src="/public/logo.png" alt="Mirchi Mafia" />
     <h2>Track Your Order</h2>
-    <p>Tap below to get notified with sound &amp; vibration when your food is ready.</p>
+    <p>Tap below — we'll <strong>speak &amp; notify you</strong> the moment your meal is ready, even if your screen is off.</p>
     <button id="tap-btn" onclick="activate()">👆 Tap to Start Tracking</button>
   </div>
 
@@ -294,53 +294,72 @@ exports.servePagerPage = (req, res) => {
     let audioCtx = null;
 
     function activate() {
-      // Create AudioContext on user gesture — required by browsers
+      // Unlock AudioContext on user gesture
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-      // Play a silent buffer to fully unlock audio
       const buf = audioCtx.createBuffer(1, 1, 22050);
       const src = audioCtx.createBufferSource();
-      src.buffer = buf;
-      src.connect(audioCtx.destination);
-      src.start(0);
+      src.buffer = buf; src.connect(audioCtx.destination); src.start(0);
 
-      // Unlock vibration with a real pulse on the user gesture — required by Chrome Android
+      // Unlock vibration
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+      // Unlock speech synthesis on user gesture (required by iOS/Android Chrome)
+      if ('speechSynthesis' in window) {
+        var unlock = new SpeechSynthesisUtterance('');
+        unlock.volume = 0;
+        window.speechSynthesis.speak(unlock);
+      }
+
+      // Request browser notification permission (needed for background alerts)
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
 
       document.getElementById('activate-overlay').style.display = 'none';
       document.getElementById('main-card').style.display = 'block';
 
-      // Start polling
       checkStatus();
       pollInterval = setInterval(checkStatus, 5000);
     }
 
-    function playBuzzer() {
-      if (!audioCtx) return;
-      [0, 0.45, 0.9].forEach(function(offset) {
-        var osc = audioCtx.createOscillator();
-        var gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.type = 'square';
-        osc.frequency.value = 880;
-        gain.gain.setValueAtTime(0.35, audioCtx.currentTime + offset);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + offset + 0.35);
-        osc.start(audioCtx.currentTime + offset);
-        osc.stop(audioCtx.currentTime + offset + 0.35);
-      });
+    // Speak the message N times, with a gap between each
+    function speakMessage(msg, times) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      for (var i = 0; i < times; i++) {
+        (function(idx) {
+          setTimeout(function() {
+            var utter = new SpeechSynthesisUtterance(msg);
+            utter.volume = 1;
+            utter.rate = 0.85;
+            utter.pitch = 1.1;
+            window.speechSynthesis.speak(utter);
+          }, idx * 2400);
+        })(i);
+      }
+    }
+
+    // Browser notification — works when tab is in background
+    function sendBrowserNotification(title, body) {
+      if (!('Notification' in window)) return;
+      if (Notification.permission === 'granted') {
+        try {
+          new Notification(title, {
+            body: body,
+            icon: '/public/logo.png',
+            badge: '/public/logo.png',
+            requireInteraction: true, // stays visible until dismissed
+          });
+        } catch(e) {}
+      }
     }
 
     function vibratePhone() {
       if (!navigator.vibrate) return false;
-      try {
-        // Long aggressive pattern: on-off-on-off-on  (ms)
-        return navigator.vibrate([600, 150, 600, 150, 600, 150, 1000]);
-      } catch(e) { return false; }
+      try { return navigator.vibrate([600, 150, 600, 150, 600, 150, 1000]); } catch(e) { return false; }
     }
 
     function flashScreen() {
-      // Strong visual alert — flashes the whole screen green
       var flash = document.createElement('div');
       flash.style.cssText = 'position:fixed;inset:0;background:#22c55e;z-index:9999;pointer-events:none;';
       document.body.appendChild(flash);
@@ -404,20 +423,29 @@ exports.servePagerPage = (req, res) => {
       }
       document.getElementById('ready-section').style.display = 'block';
 
-      // First burst: sound + flash immediately
-      playBuzzer();
+      var isPartial = lastSeenRingCount > 1;
+      var speechMsg = isPartial
+        ? 'More of your meal is ready! Please come to the counter.'
+        : 'Your meal is ready! Please come to the counter to collect it.';
+
+      // Speak 3 times
+      speakMessage(speechMsg, 3);
+
+      // Browser notification (works when tab is backgrounded)
+      sendBrowserNotification(
+        isPartial ? '🔔 More items ready!' : '🍽️ Your meal is ready!',
+        'Please come to the counter at Mirchi Mafia to collect your order.'
+      );
+
+      // Vibration + visual flash
       flashScreen();
       vibratePhone();
 
-      // Keep retrying vibration every 1.5 s for 12 s total.
-      // This catches the case where the phone screen was off and comes back on
-      // (Chrome Android stops vibrating when the screen is off, resumes when lit).
+      // Retry vibration every 1.5s for 12s (fires when phone screen comes back on)
       var vibAttempts = 0;
       var vibRetry = setInterval(function() {
         vibAttempts++;
         vibratePhone();
-        // Also repeat sound on 2nd and 4th attempt so it feels urgent
-        if (vibAttempts === 2 || vibAttempts === 4) playBuzzer();
         if (vibAttempts >= 8) clearInterval(vibRetry);
       }, 1500);
     }
