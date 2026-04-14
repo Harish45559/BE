@@ -45,6 +45,7 @@ exports.getPagerStatus = async (req, res) => {
       status: order.pager_status,
       orderNumber: order.order_number,
       customerName: order.customer_name,
+      ringCount: order.ring_count || 0,
     });
   } catch (err) {
     console.error('❌ Pager status error:', err);
@@ -61,8 +62,9 @@ exports.markReady = async (req, res) => {
     const order = await Order.findOne({ where: { pager_token: req.params.token } });
     if (!order) return res.status(404).json({ error: 'Invalid pager token' });
 
-    await order.update({ pager_status: 'ready' });
-    res.json({ message: 'Order marked as ready', orderNumber: order.order_number });
+    const newCount = (order.ring_count || 0) + 1;
+    await order.update({ pager_status: 'ready', ring_count: newCount });
+    res.json({ message: 'Order marked as ready', orderNumber: order.order_number, ringCount: newCount });
   } catch (err) {
     console.error('❌ Mark ready error:', err);
     res.status(500).json({ error: 'Failed to mark order as ready' });
@@ -245,7 +247,7 @@ exports.servePagerPage = (req, res) => {
     <div id="ready-section">
       <div class="ready-banner">
         <div class="ready-icon">🎉</div>
-        <h2>Your order is ready!</h2>
+        <h2 id="ring-label">Your order is ready!</h2>
         <p>Please come to the counter to collect it.</p>
       </div>
       <div class="order-info">
@@ -259,7 +261,7 @@ exports.servePagerPage = (req, res) => {
   <script>
     const TOKEN = '${token}';
     let pollInterval = null;
-    let alreadyReady = false;
+    let lastSeenRingCount = 0; // tracks how many times we've already buzzed
     let audioCtx = null;
 
     function activate() {
@@ -334,10 +336,11 @@ exports.servePagerPage = (req, res) => {
         document.getElementById('customer-name').textContent = data.customerName;
         document.getElementById('order-info').style.display = 'block';
 
-        if (data.status === 'ready' && !alreadyReady) {
-          alreadyReady = true;
-          clearInterval(pollInterval);
+        // Buzz every time ring_count increases (supports multiple rings per order)
+        if (data.status === 'ready' && (data.ringCount || 0) > lastSeenRingCount) {
+          lastSeenRingCount = data.ringCount || 1;
           showReady(data);
+          // Keep polling — staff might ring again for remaining items
         }
       } catch (err) {
         document.getElementById('error-msg').textContent = 'Connection issue — retrying…';
@@ -348,6 +351,13 @@ exports.servePagerPage = (req, res) => {
       document.getElementById('waiting-section').style.display = 'none';
       document.getElementById('ready-order-number').textContent = '#' + data.orderNumber;
       document.getElementById('ready-customer-name').textContent = data.customerName;
+      // Update ring label — first ring vs additional rings
+      var ringEl = document.getElementById('ring-label');
+      if (ringEl) {
+        ringEl.textContent = lastSeenRingCount > 1
+          ? '🔔 More of your order is ready! (Part ' + lastSeenRingCount + ')'
+          : '🎉 Your order is ready!';
+      }
       document.getElementById('ready-section').style.display = 'block';
 
       // First burst: sound + flash immediately
