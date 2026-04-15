@@ -7,6 +7,8 @@ const Employee = require("./Employee");
 const Attendance = require("./Attendance");
 const Category = require("./Category");
 const MenuItem = require("./menuItem");
+const Customer = require("./Customer");
+const TimeSlotSettings = require("./TimeSlotSettings");
 const OrderModel = require("./Order");
 
 const HeldOrderModel = require("./HeldOrder");
@@ -27,6 +29,8 @@ module.exports = {
   Attendance,
   Category,
   MenuItem,
+  Customer,
+  TimeSlotSettings,
   Order,
   HeldOrder,
   TillStatus,

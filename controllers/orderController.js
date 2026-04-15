@@ -101,10 +101,14 @@ exports.placeOrder = async (req, res) => {
   }
 };
 
-// ✅ GET /orders/all
+// ✅ GET /orders/all?source=online|pos
 exports.getAllOrders = async (req, res) => {
   try {
+    const where = {};
+    if (req.query.source) where.source = req.query.source;
+
     const orders = await Order.findAll({
+      where,
       order: [["created_at", "DESC"]],
     });
 
@@ -121,7 +125,7 @@ exports.getAllOrders = async (req, res) => {
   }
 };
 
-// ✅ GET /orders/by-date?date=YYYY-MM-DD
+// ✅ GET /orders/by-date?date=YYYY-MM-DD&source=online|pos
 exports.getOrdersByDate = async (req, res) => {
   try {
     const date = req.query.date || DateTime.now().toISODate();
@@ -135,12 +139,13 @@ exports.getOrdersByDate = async (req, res) => {
       .endOf("day")
       .toJSDate();
 
+    const where = {
+      created_at: { [Op.between]: [dayStart, dayEnd] },
+    };
+    if (req.query.source) where.source = req.query.source;
+
     const orders = await Order.findAll({
-      where: {
-        created_at: {
-          [Op.between]: [dayStart, dayEnd],
-        },
-      },
+      where,
       order: [["created_at", "DESC"]],
     });
 

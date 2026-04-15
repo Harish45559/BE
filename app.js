@@ -9,6 +9,11 @@ dotenv.config();
 
 const app = express();
 
+/* ================= TRUST PROXY ================= */
+// Required when running behind a proxy/forward port (mobile testing, Render, ngrok etc.)
+// Allows express-rate-limit to correctly read the client IP from X-Forwarded-For
+app.set("trust proxy", 1);
+
 /* ================= SECURITY ================= */
 app.use(helmet());
 
@@ -40,6 +45,11 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
+/* ================= STRIPE WEBHOOK (raw body — must be before express.json) ================= */
+
+const customerPaymentRoutes = require("./routes/customerPaymentRoutes");
+app.use("/api/customer/payments", express.raw({ type: "application/json" }), customerPaymentRoutes);
+
 /* ================= BODY PARSER ================= */
 
 app.use(express.json());
@@ -47,6 +57,13 @@ app.use(express.json());
 /* ================= ROUTES ================= */
 
 const authRoutes = require("./routes/authRoutes");
+const customerAuthRoutes = require("./routes/customerAuthRoutes");
+const customerMenuRoutes = require("./routes/customerMenuRoutes");
+const customerOrderRoutes = require("./routes/customerOrderRoutes");
+const customerProfileRoutes = require("./routes/customerProfileRoutes");
+const customerTimeslotRoutes = require("./routes/customerTimeslotRoutes");
+const timeSlotRoutes = require("./routes/timeSlotRoutes");
+const onlineOrderRoutes = require("./routes/onlineOrderRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const reportRoutes = require("./routes/reportRoutes");
@@ -59,10 +76,17 @@ const pagerRoutes = require("./routes/pagerRoutes");
 const { servePagerPage } = require("./controllers/pagerController");
 
 app.use("/api/auth", authRoutes);
+app.use("/api/customer/auth", customerAuthRoutes);
+app.use("/api/customer/menu", customerMenuRoutes);
+app.use("/api/customer/orders", customerOrderRoutes);
+app.use("/api/customer/profile", customerProfileRoutes);
+app.use("/api/customer/timeslots", customerTimeslotRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/orders/online", onlineOrderRoutes);
+app.use("/api/orders/timeslots", timeSlotRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/sales", salesRoutes);
