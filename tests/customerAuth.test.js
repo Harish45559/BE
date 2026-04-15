@@ -185,24 +185,27 @@ describe("POST /api/customer/auth/forgot-password", () => {
     expect(typeof res.body.resetToken).toBe("string");
   });
 
-  // ❌ Unknown email — 404
-  test("returns 404 for an unregistered email", async () => {
+  // Unknown email — still returns 200 (security: don't reveal if email exists)
+  test("returns 200 for an unregistered email (no account enumeration)", async () => {
     const res = await request(app)
       .post("/api/customer/auth/forgot-password")
       .send({ email: "nobody_here@nowhere.com" });
 
-    expect(res.statusCode).toBe(404);
-    expect(res.body.success).toBe(false);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    // resetToken must NOT be present for unknown emails
+    expect(res.body).not.toHaveProperty("resetToken");
   });
 
-  // ❌ Missing email — 400 validation error
+  // ❌ Missing email — 400
   test("returns 400 when email is missing", async () => {
     const res = await request(app)
       .post("/api/customer/auth/forgot-password")
       .send({});
 
     expect(res.statusCode).toBe(400);
-    expect(Array.isArray(res.body.errors)).toBe(true);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBeTruthy();
   });
 });
 
@@ -228,7 +231,7 @@ describe("POST /api/customer/auth/reset-password", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.message).toMatch(/reset/i);
+    expect(res.body.message).toMatch(/password updated/i);
 
     // Reset back so other tests still work (they use "password1")
     await request(app)
