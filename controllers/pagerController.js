@@ -292,6 +292,8 @@ exports.servePagerPage = (req, res) => {
     let pollInterval = null;
     let lastSeenRingCount = 0; // tracks how many times we've already buzzed
     let audioCtx = null;
+    let wakeLock = null;
+    let pendingReadyAlert = null; // stores alert data when tab is backgrounded
 
     function activate() {
       // Unlock AudioContext on user gesture
@@ -314,6 +316,31 @@ exports.servePagerPage = (req, res) => {
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
       }
+
+      // Wake Lock — keeps screen on so speech fires without the user unlocking
+      if ('wakeLock' in navigator) {
+        navigator.wakeLock.request('screen').then(function(wl) {
+          wakeLock = wl;
+        }).catch(function(){});
+      }
+
+      // When user returns to this tab (e.g. after tapping the notification),
+      // re-acquire wake lock and fire any speech that was pending in background
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) return;
+        // Re-acquire wake lock if it was released
+        if ('wakeLock' in navigator && wakeLock === null) {
+          navigator.wakeLock.request('screen').then(function(wl) { wakeLock = wl; }).catch(function(){});
+        }
+        // Fire speech that was held back while tab was hidden
+        if (pendingReadyAlert) {
+          var alert = pendingReadyAlert;
+          pendingReadyAlert = null;
+          speakMessage(alert.msg, 3);
+          flashScreen();
+          vibratePhone();
+        }
+      });
 
       document.getElementById('activate-overlay').style.display = 'none';
       document.getElementById('main-card').style.display = 'block';
@@ -428,26 +455,23 @@ exports.servePagerPage = (req, res) => {
         ? 'More of your meal is ready! Please come to the counter.'
         : 'Your meal is ready! Please come to the counter to collect it.';
 
-      // Speak 3 times
-      speakMessage(speechMsg, 3);
-
-      // Browser notification (works when tab is backgrounded)
+      // Browser notification always fires — works even when tab is in background
       sendBrowserNotification(
         isPartial ? '🔔 More items ready!' : '🍽️ Your meal is ready!',
         'Please come to the counter at Mirchi Mafia to collect your order.'
       );
 
-      // Vibration + visual flash
-      flashScreen();
-      vibratePhone();
-
-      // Retry vibration every 1.5s for 12s (fires when phone screen comes back on)
-      var vibAttempts = 0;
-      var vibRetry = setInterval(function() {
-        vibAttempts++;
+      if (document.hidden) {
+        // Tab is backgrounded — speech is blocked by the browser.
+        // Store the pending alert; visibilitychange will fire it when they return.
+        pendingReadyAlert = { msg: speechMsg };
+      } else {
+        // Tab is active — speak immediately
+        speakMessage(speechMsg, 3);
+        flashScreen();
         vibratePhone();
-        if (vibAttempts >= 8) clearInterval(vibRetry);
-      }, 1500);
+      }
+
     }
   </script>
 </body>
