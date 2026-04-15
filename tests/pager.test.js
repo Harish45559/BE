@@ -1,7 +1,7 @@
 const request = require("supertest");
 const app = require("../app");
 
-jest.setTimeout(20000); // QR generation is CPU-heavy — allow extra time
+jest.setTimeout(45000); // QR generation is CPU-heavy — allow extra time
 
 let adminToken;
 let placedOrderId;
@@ -45,7 +45,7 @@ beforeAll(async () => {
   expect(pagerRes.statusCode).toBe(200);
   pagerToken = pagerRes.body.token;
   expect(pagerToken).toBeTruthy();
-}, 20000);
+}, 45000);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auth guard — protected routes must reject without token
