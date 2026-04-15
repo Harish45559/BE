@@ -45,8 +45,8 @@ describe("GET /api/customer/timeslots", () => {
   });
 
   test("returns same slots for any date (slots based on settings, not date)", async () => {
-    const r1 = await request(app).get("/api/customer/timeslots?date=2026-04-14");
-    const r2 = await request(app).get("/api/customer/timeslots?date=2026-04-21");
+    const r1 = await request(app).get("/api/customer/timeslots?date=2026-05-01");
+    const r2 = await request(app).get("/api/customer/timeslots?date=2026-05-08");
     // Slot count should match (same settings)
     expect(r1.body.slots.length).toBe(r2.body.slots.length);
   });
