@@ -1,10 +1,23 @@
 const request = require("supertest");
 const app = require("../app");
+const { Customer, Order } = require("../models");
+const { Op } = require("sequelize");
 
 let customerToken;
 let placedOrderId;
 
 const testEmail = `co_test_${Date.now()}@example.com`;
+const extraEmails = []; // tracks inline customers created inside individual tests
+
+afterAll(async () => {
+  const allEmails = [testEmail, ...extraEmails];
+  const customers = await Customer.findAll({ where: { email: { [Op.in]: allEmails } } });
+  const ids = customers.map((c) => c.id);
+  if (ids.length) {
+    await Order.destroy({ where: { customer_id: { [Op.in]: ids } } });
+    await Customer.destroy({ where: { id: { [Op.in]: ids } } });
+  }
+});
 
 const validItems = [
   { id: 1, name: "Paneer Tikka", price: 7.99, qty: 2 },
@@ -239,11 +252,13 @@ describe("GET /api/customer/orders", () => {
 
   test("only returns orders belonging to this customer (not others)", async () => {
     // Register a second customer
+    const secondEmail = `second_${Date.now()}@test.com`;
+    extraEmails.push(secondEmail);
     const reg2 = await request(app)
       .post("/api/customer/auth/register")
       .send({
         name: "Second Customer",
-        email: `second_${Date.now()}@test.com`,
+        email: secondEmail,
         phone: "07911 999888",
         address_line1: "2 Other St",
         city: "London",
@@ -310,11 +325,13 @@ describe("GET /api/customer/orders/:id", () => {
     if (!placedOrderId) return;
 
     // Register another customer and try to access the first customer's order
+    const spyEmail = `spy_${Date.now()}@test.com`;
+    extraEmails.push(spyEmail);
     const reg2 = await request(app)
       .post("/api/customer/auth/register")
       .send({
         name: "Spy Customer",
-        email: `spy_${Date.now()}@test.com`,
+        email: spyEmail,
         phone: "07911 777666",
         address_line1: "3 Spy St",
         city: "London",

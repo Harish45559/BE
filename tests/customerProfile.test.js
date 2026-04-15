@@ -1,8 +1,19 @@
 const request = require("supertest");
 const app = require("../app");
+const { Customer, Order } = require("../models");
+const { Op } = require("sequelize");
 
 let customerToken;
 const testEmail = `profile_test_${Date.now()}@example.com`;
+
+afterAll(async () => {
+  const customers = await Customer.findAll({ where: { email: testEmail } });
+  const ids = customers.map((c) => c.id);
+  if (ids.length) {
+    await Order.destroy({ where: { customer_id: { [Op.in]: ids } } });
+    await Customer.destroy({ where: { id: { [Op.in]: ids } } });
+  }
+});
 
 beforeAll(async () => {
   const regRes = await request(app)

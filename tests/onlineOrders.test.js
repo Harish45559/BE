@@ -1,11 +1,24 @@
 const request = require("supertest");
 const app = require("../app");
+const { Customer, Order } = require("../models");
+const { Op } = require("sequelize");
 
 let adminToken;
 let testOrderId;        // online order created in beforeAll, used throughout
 let testOrderNumber;
 
 const testEmail = `ol_customer_${Date.now()}@example.com`;
+const extraEmails = []; // inline customers created inside individual tests
+
+afterAll(async () => {
+  const allEmails = [testEmail, ...extraEmails];
+  const customers = await Customer.findAll({ where: { email: { [Op.in]: allEmails } } });
+  const ids = customers.map((c) => c.id);
+  if (ids.length) {
+    await Order.destroy({ where: { customer_id: { [Op.in]: ids } } });
+    await Customer.destroy({ where: { id: { [Op.in]: ids } } });
+  }
+});
 
 // ──────────────────────────────────────────────
 // Setup: get staff token + register customer + place one online order
@@ -200,11 +213,13 @@ describe("PATCH /api/orders/online/:id/accept", () => {
 
   test("estimated_ready is pickup_slot + minutes (not just now + minutes)", async () => {
     // Place a fresh order with a known pickup_time of 18:00
+    const slotEmail = `slot_${Date.now()}@test.com`;
+    extraEmails.push(slotEmail);
     const regRes = await request(app)
       .post("/api/customer/auth/register")
       .send({
         name: "Slot Test",
-        email: `slot_${Date.now()}@test.com`,
+        email: slotEmail,
         phone: "07911 111111",
         address_line1: "1 Slot St",
         city: "London",
@@ -258,11 +273,13 @@ describe("PATCH /api/orders/online/:id/ready", () => {
 
   test("returns 200 and sets order_status=ready", async () => {
     // Place + accept a fresh order, then mark as ready
+    const readyEmail = `ready_${Date.now()}@test.com`;
+    extraEmails.push(readyEmail);
     const regRes = await request(app)
       .post("/api/customer/auth/register")
       .send({
         name: "Ready Test",
-        email: `ready_${Date.now()}@test.com`,
+        email: readyEmail,
         phone: "07955 555555",
         address_line1: "5 Ready St",
         city: "Luton",
@@ -321,11 +338,13 @@ describe("PATCH /api/orders/online/:id/reject", () => {
 
   test("returns 200 and sets order_status=rejected when order exists", async () => {
     // Place a fresh order to reject (so we have a pending one)
+    const rejectEmail = `reject_${Date.now()}@test.com`;
+    extraEmails.push(rejectEmail);
     const regRes = await request(app)
       .post("/api/customer/auth/register")
       .send({
         name: "Reject Test",
-        email: `reject_${Date.now()}@test.com`,
+        email: rejectEmail,
         phone: "07922 222222",
         address_line1: "2 Reject St",
         city: "Luton",
@@ -377,11 +396,13 @@ describe("PATCH /api/orders/online/:id/complete", () => {
 
   test("returns 200 and sets order_status=completed", async () => {
     // Place + accept a fresh order, then complete it
+    const completeEmail = `complete_${Date.now()}@test.com`;
+    extraEmails.push(completeEmail);
     const regRes = await request(app)
       .post("/api/customer/auth/register")
       .send({
         name: "Complete Test",
-        email: `complete_${Date.now()}@test.com`,
+        email: completeEmail,
         phone: "07933 333333",
         address_line1: "3 Complete St",
         city: "Luton",
@@ -428,11 +449,13 @@ describe("POST /api/customer/orders — validation", () => {
   let customerToken;
 
   beforeAll(async () => {
+    const valEmail = `val_${Date.now()}@test.com`;
+    extraEmails.push(valEmail);
     const regRes = await request(app)
       .post("/api/customer/auth/register")
       .send({
         name: "Val Test Customer",
-        email: `val_${Date.now()}@test.com`,
+        email: valEmail,
         phone: "07944 444444",
         address_line1: "4 Val St",
         city: "London",
