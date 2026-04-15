@@ -191,15 +191,6 @@ async function runMigrations() {
     }
   }
 
-  // 12. Force correct opening/closing times for online takeaway slots
-  try {
-    await db.query(
-      `UPDATE time_slot_settings SET opening_time = '17:00', closing_time = '23:30' WHERE id = 1;`,
-    );
-    console.log("✅ Migration: time slot hours set to 17:00–23:30");
-  } catch (err) {
-    console.error("⚠️  Migration time slot hours failed:", err.message);
-  }
 }
 
 /* ================= DATABASE + SERVER START ================= */
