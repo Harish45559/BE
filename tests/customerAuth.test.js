@@ -1,9 +1,21 @@
 const request = require("supertest");
 const app = require("../app");
+const { Customer, Order } = require("../models");
+const { Op } = require("sequelize");
 
 // Unique email per test run to avoid duplicate conflicts across runs
 const testEmail = `testcustomer_${Date.now()}@example.com`;
 let customerToken; // shared between register → me tests
+
+// ── Cleanup: delete all test customers + their orders after the suite ─────────
+afterAll(async () => {
+  const customers = await Customer.findAll({ where: { email: testEmail } });
+  const ids = customers.map((c) => c.id);
+  if (ids.length) {
+    await Order.destroy({ where: { customer_id: { [Op.in]: ids } } });
+    await Customer.destroy({ where: { id: { [Op.in]: ids } } });
+  }
+});
 
 const validCustomer = {
   name: "Test Customer",
