@@ -1,10 +1,5 @@
 const jwt = require("jsonwebtoken");
 
-// Startup guard — crash early if JWT_SECRET is missing
-if (!process.env.JWT_SECRET) {
-  throw new Error("JWT_SECRET environment variable is not set");
-}
-
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
 

@@ -1,10 +1,5 @@
 const jwt = require("jsonwebtoken");
 
-// Startup guard — crash early if CUSTOMER_JWT_SECRET is missing
-if (!process.env.CUSTOMER_JWT_SECRET) {
-  throw new Error("CUSTOMER_JWT_SECRET environment variable is not set");
-}
-
 function customerAuthMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
 
