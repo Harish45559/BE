@@ -82,6 +82,48 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 0,
       comment: 'Incremented each time staff marks the order ready — allows multiple buzzes per order'
     },
+
+    source: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'pos',
+      comment: 'pos = placed by staff, online = placed by customer'
+    },
+
+    customer_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: null,
+      comment: 'FK to customers table — null for walk-in/pos orders'
+    },
+
+    pickup_time: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+      comment: 'Requested pickup time for takeaway online orders (stored as UK formatted string)'
+    },
+
+    payment_status: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'paid',
+      comment: 'paid = already paid, pending = pay on collection'
+    },
+
+    order_status: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'pending',
+      comment: 'pending | accepted | rejected | ready | completed',
+    },
+
+    estimated_ready: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+      comment: 'Staff-set estimated ready time e.g. "14:45"',
+    },
   }, {
     timestamps: false,
     tableName: 'orders'
