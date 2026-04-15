@@ -1,11 +1,18 @@
 const { Order } = require("../models");
 const Stripe = require("stripe");
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY environment variable is not set");
+// Lazy initialisation — only fail when a payment endpoint is actually called,
+// not at module load time. This lets tests run without STRIPE_SECRET_KEY set.
+let _stripe = null;
+function getStripe() {
+  if (!_stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY environment variable is not set");
+    }
+    _stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+  }
+  return _stripe;
 }
-
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 // ─── POST /api/customer/orders/:id/pay ───────────────────────────────────────
 // Creates a Stripe PaymentIntent for an existing pending order.
@@ -27,7 +34,7 @@ exports.createPaymentIntent = async (req, res) => {
     // Amount in pence (Stripe requires integer, smallest currency unit)
     const amount = Math.round(order.final_amount * 100);
 
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntent = await getStripe().paymentIntents.create({
       amount,
       currency: "gbp",
       metadata: {
@@ -59,7 +66,7 @@ exports.stripeWebhook = async (req, res) => {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       req.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
