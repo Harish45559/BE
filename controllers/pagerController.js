@@ -15,7 +15,7 @@ exports.generatePager = async (req, res) => {
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
     const pagerUrl = `${baseUrl}/pager/${token}`;
 
-    const qrCode = await QRCode.toDataURL(pagerUrl, { width: 600, margin: 2, errorCorrectionLevel: 'H' });
+    const qrCode = await QRCode.toDataURL(pagerUrl, { width: 300, margin: 1, errorCorrectionLevel: 'M' });
 
     await order.update({ pager_token: token, pager_status: 'waiting' });
 
