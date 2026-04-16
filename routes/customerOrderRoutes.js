@@ -30,8 +30,8 @@ const validateOrder = [
   body("items.*.qty").isInt({ min: 1 }).withMessage("Each item must have qty >= 1"),
   body("payment_method")
     .notEmpty()
-    .isIn(["Cash", "Pay at Collection"])
-    .withMessage("payment_method must be 'Cash' or 'Pay at Collection'"),
+    .isIn(["Cash", "Pay at Collection", "Card"])
+    .withMessage("payment_method must be 'Cash', 'Pay at Collection', or 'Card'"),
   validate,
 ];
 
