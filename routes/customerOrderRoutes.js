@@ -45,5 +45,6 @@ router.get("/", customerOrderController.getMyOrders);
 router.get("/:id", customerOrderController.getOrderById);
 router.get("/:id/receipt", customerReceiptController.downloadReceipt);
 router.post("/:id/pay", customerPaymentController.createPaymentIntent);
+router.patch("/:id/confirm-payment", customerPaymentController.confirmPayment);
 
 module.exports = router;

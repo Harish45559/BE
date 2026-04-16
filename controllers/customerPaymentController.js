@@ -58,6 +58,42 @@ exports.createPaymentIntent = async (req, res) => {
   }
 };
 
+// ─── PATCH /api/customer/orders/:id/confirm-payment ─────────────────────────
+// Called by frontend after stripe.confirmCardPayment succeeds.
+// Verifies the PaymentIntent with Stripe, then marks the order as paid.
+exports.confirmPayment = async (req, res) => {
+  try {
+    const { paymentIntentId } = req.body || {};
+    if (!paymentIntentId) {
+      return res.status(400).json({ success: false, message: "paymentIntentId is required" });
+    }
+
+    const order = await Order.findOne({
+      where: { id: req.params.id, customer_id: req.customer.id },
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // Verify with Stripe that this PaymentIntent actually succeeded
+    const intent = await getStripe().paymentIntents.retrieve(paymentIntentId);
+    if (intent.status !== "succeeded") {
+      return res.status(400).json({ success: false, message: "Payment has not succeeded" });
+    }
+
+    // Update order
+    await order.update({ payment_status: "paid", payment_method: "Card" });
+
+    return res.status(200).json({ success: true, message: "Payment confirmed" });
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("confirmPayment error:", err.message);
+    }
+    return res.status(500).json({ success: false, message: "Failed to confirm payment" });
+  }
+};
+
 // ─── POST /api/customer/payments/webhook ─────────────────────────────────────
 // Stripe calls this when a payment succeeds or fails.
 // IMPORTANT: This route must use express.raw() body parser — NOT express.json().

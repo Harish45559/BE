@@ -54,15 +54,12 @@ exports.placeOrder = async (req, res) => {
       });
     }
 
-    const allowedPayments = ["Cash", "Pay at Collection"];
-    const normalisedPayment =
-      (payment_method || "").trim().charAt(0).toUpperCase() +
-      (payment_method || "").trim().slice(1).toLowerCase();
+    const allowedPayments = ["Cash", "Pay at Collection", "Card"];
 
     if (!allowedPayments.includes(payment_method)) {
       return res.status(400).json({
         success: false,
-        message: "payment_method must be 'Cash' or 'Pay at Collection'",
+        message: "payment_method must be 'Cash', 'Pay at Collection', or 'Card'",
       });
     }
 
