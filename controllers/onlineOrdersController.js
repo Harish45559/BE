@@ -31,6 +31,8 @@ exports.getOnlineOrders = async (req, res) => {
     const where = {
       source: "online",
       created_at: { [Op.between]: [dayStart, dayEnd] },
+      // Never show Card orders that haven't been paid — they're awaiting payment
+      [Op.not]: [{ payment_method: "Card", payment_status: "pending" }],
     };
 
     if (status !== "all") {
@@ -109,6 +111,8 @@ exports.getPendingOnlineOrders = async (req, res) => {
       where: {
         source: "online",
         order_status: "pending",
+        // Exclude Card orders that haven't been paid yet — they're awaiting payment, not ready for admin action
+        [Op.not]: [{ payment_method: "Card", payment_status: "pending" }],
       },
       order: [["created_at", "ASC"]], // oldest first — needs attention soonest
       attributes: [
