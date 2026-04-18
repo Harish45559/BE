@@ -79,6 +79,50 @@ exports.createCheckout = async (req, res) => {
   }
 };
 
+// POST /api/customer/orders/:id/verify-payment
+// Called by frontend after SumUp onResponse("success") fires.
+// Verifies the checkout status directly with SumUp API and marks order as paid.
+exports.verifyPayment = async (req, res) => {
+  try {
+    const { checkoutId } = req.body || {};
+    if (!checkoutId) {
+      return res.status(400).json({ success: false, message: "checkoutId is required" });
+    }
+
+    const order = await Order.findOne({
+      where: { id: req.params.id, customer_id: req.customer.id },
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    if (order.payment_status === "paid") {
+      return res.status(200).json({ success: true, message: "Already paid" });
+    }
+
+    const verifyRes = await fetch(`https://api.sumup.com/v0.1/checkouts/${checkoutId}`, {
+      headers: getSumUpHeaders(),
+    });
+
+    if (!verifyRes.ok) {
+      return res.status(500).json({ success: false, message: "Could not verify payment" });
+    }
+
+    const checkout = await verifyRes.json();
+
+    if (checkout.status === "PAID") {
+      await order.update({ payment_status: "paid", payment_method: "Card" });
+      return res.status(200).json({ success: true });
+    }
+
+    return res.status(400).json({ success: false, message: "Payment not confirmed by SumUp" });
+  } catch (err) {
+    console.error("verifyPayment error:", err.message);
+    return res.status(500).json({ success: false, message: "Failed to verify payment" });
+  }
+};
+
 // POST /api/customer/payments/webhook
 // SumUp calls this when a payment status changes.
 // We verify the checkout with SumUp's API before trusting it.
