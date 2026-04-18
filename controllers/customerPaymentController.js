@@ -1,23 +1,38 @@
 const { Order } = require("../models");
-const Stripe = require("stripe");
 
-// Lazy initialisation — only fail when a payment endpoint is actually called,
-// not at module load time. This lets tests run without STRIPE_SECRET_KEY set.
-let _stripe = null;
-function getStripe() {
-  if (!_stripe) {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error("STRIPE_SECRET_KEY environment variable is not set");
-    }
-    _stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+// ─── STRIPE (commented out — replaced by SumUp) ──────────────────────────────
+// const Stripe = require("stripe");
+// let _stripe = null;
+// function getStripe() {
+//   if (!_stripe) {
+//     if (!process.env.STRIPE_SECRET_KEY) {
+//       throw new Error("STRIPE_SECRET_KEY environment variable is not set");
+//     }
+//     _stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+//   }
+//   return _stripe;
+// }
+
+// exports.createPaymentIntent = async (req, res) => { ... }   // Stripe
+// exports.confirmPayment      = async (req, res) => { ... }   // Stripe
+// exports.stripeWebhook       = async (req, res) => { ... }   // Stripe
+
+// ─── SUMUP ────────────────────────────────────────────────────────────────────
+
+function getSumUpHeaders() {
+  if (!process.env.SUMUP_API_KEY) {
+    throw new Error("SUMUP_API_KEY environment variable is not set");
   }
-  return _stripe;
+  return {
+    Authorization: `Bearer ${process.env.SUMUP_API_KEY}`,
+    "Content-Type": "application/json",
+  };
 }
 
-// ─── POST /api/customer/orders/:id/pay ───────────────────────────────────────
-// Creates a Stripe PaymentIntent for an existing pending order.
-// Returns { clientSecret } — frontend uses this with Stripe.js to complete payment.
-exports.createPaymentIntent = async (req, res) => {
+// POST /api/customer/orders/:id/pay
+// Creates a SumUp checkout for an existing pending order.
+// Returns { checkoutId } — frontend uses this with SumUp JS SDK to render card form.
+exports.createCheckout = async (req, res) => {
   try {
     const order = await Order.findOne({
       where: { id: req.params.id, customer_id: req.customer.id },
@@ -31,109 +46,83 @@ exports.createPaymentIntent = async (req, res) => {
       return res.status(400).json({ success: false, message: "Order is already paid" });
     }
 
-    // Amount in pence (Stripe requires integer, smallest currency unit)
-    const amount = Math.round(order.final_amount * 100);
+    const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
 
-    const paymentIntent = await getStripe().paymentIntents.create({
-      amount,
-      currency: "gbp",
-      metadata: {
-        order_id: String(order.id),
-        order_number: order.order_number,
-        customer_id: String(order.customer_id),
-      },
-      description: `Cozy Cup — Order ${order.order_number}`,
+    const response = await fetch("https://api.sumup.com/v0.1/checkouts", {
+      method: "POST",
+      headers: getSumUpHeaders(),
+      body: JSON.stringify({
+        checkout_reference: `ORDER-${order.id}`,
+        amount: order.final_amount,
+        currency: "GBP",
+        merchant_code: process.env.SUMUP_MERCHANT_CODE,
+        description: `Mirchi Mafia — Order ${order.order_number}`,
+        return_url: `${baseUrl}/api/customer/payments/webhook`,
+      }),
     });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("SumUp createCheckout error:", data);
+      return res.status(500).json({ success: false, message: "Failed to create payment" });
+    }
 
     return res.status(200).json({
       success: true,
-      clientSecret: paymentIntent.client_secret,
+      checkoutId: data.id,
       amount: order.final_amount,
     });
   } catch (err) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("PaymentIntent error:", err.message);
-    }
+    console.error("createCheckout error:", err.message);
     return res.status(500).json({ success: false, message: "Failed to create payment" });
   }
 };
 
-// ─── PATCH /api/customer/orders/:id/confirm-payment ─────────────────────────
-// Called by frontend after stripe.confirmCardPayment succeeds.
-// Verifies the PaymentIntent with Stripe, then marks the order as paid.
-exports.confirmPayment = async (req, res) => {
+// POST /api/customer/payments/webhook
+// SumUp calls this when a payment status changes.
+// We verify the checkout with SumUp's API before trusting it.
+exports.sumupWebhook = async (req, res) => {
   try {
-    const { paymentIntentId } = req.body || {};
-    if (!paymentIntentId) {
-      return res.status(400).json({ success: false, message: "paymentIntentId is required" });
+    const { event_type, id } = req.body || {};
+
+    if (event_type !== "CHECKOUT_STATUS_CHANGED" || !id) {
+      return res.status(200).json({ received: true });
     }
 
-    const order = await Order.findOne({
-      where: { id: req.params.id, customer_id: req.customer.id },
+    // Verify with SumUp API directly — don't trust webhook body alone
+    const verifyRes = await fetch(`https://api.sumup.com/v0.1/checkouts/${id}`, {
+      headers: getSumUpHeaders(),
     });
 
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
+    if (!verifyRes.ok) {
+      console.error("SumUp webhook: failed to verify checkout", payload.id);
+      return res.status(200).json({ received: true });
     }
 
-    // Verify with Stripe that this PaymentIntent actually succeeded
-    const intent = await getStripe().paymentIntents.retrieve(paymentIntentId);
-    if (intent.status !== "succeeded") {
-      return res.status(400).json({ success: false, message: "Payment has not succeeded" });
-    }
+    const checkout = await verifyRes.json();
 
-    // Update order
-    await order.update({ payment_status: "paid", payment_method: "Card" });
+    // checkout_reference is "ORDER-{id}" — extract the id
+    const orderId = checkout.checkout_reference?.replace("ORDER-", "");
+    if (!orderId) return res.status(200).json({ received: true });
 
-    return res.status(200).json({ success: true, message: "Payment confirmed" });
-  } catch (err) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("confirmPayment error:", err.message);
-    }
-    return res.status(500).json({ success: false, message: "Failed to confirm payment" });
-  }
-};
-
-// ─── POST /api/customer/payments/webhook ─────────────────────────────────────
-// Stripe calls this when a payment succeeds or fails.
-// IMPORTANT: This route must use express.raw() body parser — NOT express.json().
-exports.stripeWebhook = async (req, res) => {
-  const sig = req.headers["stripe-signature"];
-  let event;
-
-  try {
-    event = getStripe().webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err) {
-    console.error("Stripe webhook signature error:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  if (event.type === "payment_intent.succeeded") {
-    const intent = event.data.object;
-    const orderId = intent.metadata?.order_id;
-
-    if (orderId) {
+    if (checkout.status === "PAID") {
       await Order.update(
         { payment_status: "paid", payment_method: "Card" },
         { where: { id: orderId } }
       );
     }
-  }
 
-  if (event.type === "payment_intent.payment_failed") {
-    const intent = event.data.object;
-    const orderId = intent.metadata?.order_id;
-    if (orderId) {
+    if (checkout.status === "FAILED") {
       await Order.update(
         { payment_status: "failed" },
         { where: { id: orderId } }
       );
     }
-  }
 
-  return res.status(200).json({ received: true });
+    return res.status(200).json({ received: true });
+  } catch (err) {
+    console.error("sumupWebhook error:", err.message);
+    return res.status(200).json({ received: true }); // always 200 to SumUp
+  }
 };

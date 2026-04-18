@@ -45,14 +45,15 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
-/* ================= STRIPE WEBHOOK (raw body — must be before express.json) ================= */
-
-const customerPaymentRoutes = require("./routes/customerPaymentRoutes");
-app.use("/api/customer/payments", express.raw({ type: "application/json" }), customerPaymentRoutes);
-
 /* ================= BODY PARSER ================= */
 
 app.use(express.json());
+
+/* ================= PAYMENT ROUTES (SumUp — uses regular JSON body) ================= */
+
+// Stripe required express.raw() before express.json() — SumUp uses normal JSON
+const customerPaymentRoutes = require("./routes/customerPaymentRoutes");
+app.use("/api/customer/payments", customerPaymentRoutes);
 
 /* ================= ROUTES ================= */
 
