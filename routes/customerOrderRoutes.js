@@ -39,12 +39,12 @@ const validateOrder = [
 // GET  /api/customer/orders           — get all my orders
 // GET  /api/customer/orders/:id       — get a single order
 // GET  /api/customer/orders/:id/receipt  — download receipt PDF
-// POST /api/customer/orders/:id/pay   — create Stripe PaymentIntent
+// POST /api/customer/orders/:id/pay   — create SumUp checkout
 router.post("/", validateOrder, customerOrderController.placeOrder);
 router.get("/", customerOrderController.getMyOrders);
 router.get("/:id", customerOrderController.getOrderById);
 router.get("/:id/receipt", customerReceiptController.downloadReceipt);
-router.post("/:id/pay", customerPaymentController.createPaymentIntent);
-router.patch("/:id/confirm-payment", customerPaymentController.confirmPayment);
+router.post("/:id/pay", customerPaymentController.createCheckout);
+// router.patch("/:id/confirm-payment", ...) — not needed with SumUp (webhook handles it)
 
 module.exports = router;
