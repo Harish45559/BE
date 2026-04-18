@@ -45,6 +45,7 @@ router.get("/", customerOrderController.getMyOrders);
 router.get("/:id", customerOrderController.getOrderById);
 router.get("/:id/receipt", customerReceiptController.downloadReceipt);
 router.post("/:id/pay", customerPaymentController.createCheckout);
-// router.patch("/:id/confirm-payment", ...) — not needed with SumUp (webhook handles it)
+router.post("/:id/verify-payment", customerPaymentController.verifyPayment);
+// router.patch("/:id/confirm-payment", ...) — Stripe confirm, not needed with SumUp
 
 module.exports = router;
