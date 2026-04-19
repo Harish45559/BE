@@ -54,12 +54,12 @@ exports.placeOrder = async (req, res) => {
       });
     }
 
-    const allowedPayments = ["Cash", "Pay at Collection", "Card"];
+    const allowedPayments = ["Pay on Collection", "Card"];
 
     if (!allowedPayments.includes(payment_method)) {
       return res.status(400).json({
         success: false,
-        message: "payment_method must be 'Cash', 'Pay at Collection', or 'Card'",
+        message: "payment_method must be 'Pay on Collection' or 'Card'",
       });
     }
 
