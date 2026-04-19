@@ -19,5 +19,6 @@ router.patch("/:id/accept", onlineOrdersController.acceptOrder);
 router.patch("/:id/ready", onlineOrdersController.readyOrder);
 router.patch("/:id/reject", onlineOrdersController.rejectOrder);
 router.patch("/:id/complete", onlineOrdersController.completeOrder);
+router.patch("/:id/mark-paid", onlineOrdersController.markAsPaid);
 
 module.exports = router;
