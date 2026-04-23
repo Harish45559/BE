@@ -11,7 +11,7 @@ const testEmployee = {
   username: `testuser_${Date.now()}`,       // unique to avoid duplicate conflicts
   email: `testuser_${Date.now()}@test.com`, // unique to avoid duplicate conflicts
   password: "password123",
-  phone: "9876543210",
+  phone: "07700900123",
   address: "123 Test Street",
   gender: "Male",
   dob: "1990-01-01",

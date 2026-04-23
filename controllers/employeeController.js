@@ -20,7 +20,7 @@ const validateEmployee = (data, isEdit = false) => {
   const errors = {};
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const phoneRegex = /^[6-9]\d{9}$/;
+  const phoneRegex = /^0\d{9,10}$/;
   const pinRegex = /^\d{4}$/;
   const passwordRegex = /^.{6,}$/;
 

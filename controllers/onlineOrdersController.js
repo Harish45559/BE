@@ -313,6 +313,33 @@ exports.readyOrder = async (req, res) => {
   }
 };
 
+// ─── PATCH /api/orders/online/:id/mark-paid ──────────────────────────────────
+// Staff marks a cash/COD online order as paid
+exports.markOrderPaid = async (req, res) => {
+  try {
+    const order = await Order.findByPk(req.params.id);
+    if (!order || order.source !== "online") {
+      return res
+        .status(404)
+        .json({ success: false, message: "Online order not found" });
+    }
+    order.payment_status = "paid";
+    if (req.body.payment_method) {
+      order.payment_method = req.body.payment_method;
+    }
+    await order.save();
+    return res.status(200).json({
+      success: true,
+      message: "Order marked as paid",
+      payment_status: "paid",
+    });
+  } catch (err) {
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to mark order as paid" });
+  }
+};
+
 // ─── PATCH /api/orders/online/:id/complete ───────────────────────────────────
 // Staff marks an accepted order as delivered/completed
 exports.completeOrder = async (req, res) => {

@@ -51,7 +51,7 @@ beforeAll(async () => {
     .send({
       order_type: "Takeaway",
       items: [{ id: 1, name: "Test Dish", price: 5.99, qty: 2 }],
-      payment_method: "Pay at Collection",
+      payment_method: "Pay on Collection",
       pickup_time: "18:00 14/04/2026",
     });
 
@@ -234,7 +234,7 @@ describe("PATCH /api/orders/online/:id/accept", () => {
       .send({
         order_type: "Takeaway",
         items: [{ id: 1, name: "Dish", price: 4.0, qty: 1 }],
-        payment_method: "Cash",
+        payment_method: "Pay on Collection",
         pickup_time: "18:00 14/04/2026",
       });
 
@@ -294,7 +294,7 @@ describe("PATCH /api/orders/online/:id/ready", () => {
       .send({
         order_type: "Takeaway",
         items: [{ id: 1, name: "Dish", price: 5.0, qty: 1 }],
-        payment_method: "Pay at Collection",
+        payment_method: "Pay on Collection",
         pickup_time: "17:00 14/04/2026",
       });
 
@@ -359,7 +359,7 @@ describe("PATCH /api/orders/online/:id/reject", () => {
       .send({
         order_type: "Eat In",
         items: [{ id: 1, name: "Dish", price: 3.5, qty: 1 }],
-        payment_method: "Cash",
+        payment_method: "Pay on Collection",
         pickup_time: "19:00 14/04/2026",
       });
 
@@ -417,7 +417,7 @@ describe("PATCH /api/orders/online/:id/complete", () => {
       .send({
         order_type: "Takeaway",
         items: [{ id: 1, name: "Dish", price: 6.0, qty: 1 }],
-        payment_method: "Pay at Collection",
+        payment_method: "Pay on Collection",
         pickup_time: "20:00 14/04/2026",
       });
 
@@ -469,7 +469,7 @@ describe("POST /api/customer/orders — validation", () => {
     const res = await request(app).post("/api/customer/orders").send({
       order_type: "Takeaway",
       items: [{ name: "Dish", price: 5, qty: 1 }],
-      payment_method: "Cash",
+      payment_method: "Pay on Collection",
       pickup_time: "18:00 14/04/2026",
     });
     expect(res.statusCode).toBe(401);
@@ -482,7 +482,7 @@ describe("POST /api/customer/orders — validation", () => {
       .send({
         order_type: "DriveThrough", // invalid
         items: [{ name: "Dish", price: 5, qty: 1 }],
-        payment_method: "Cash",
+        payment_method: "Pay on Collection",
         pickup_time: "18:00 14/04/2026",
       });
     expect(res.statusCode).toBe(400);
@@ -495,7 +495,7 @@ describe("POST /api/customer/orders — validation", () => {
       .send({
         order_type: "Takeaway",
         items: [],
-        payment_method: "Cash",
+        payment_method: "Pay on Collection",
         pickup_time: "18:00 14/04/2026",
       });
     expect(res.statusCode).toBe(400);
