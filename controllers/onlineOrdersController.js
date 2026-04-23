@@ -111,8 +111,8 @@ exports.getPendingOnlineOrders = async (req, res) => {
       where: {
         source: "online",
         order_status: "pending",
-        // Exclude Card orders that haven't been paid yet — they're awaiting payment, not ready for admin action
-        [Op.not]: [{ payment_method: "Card", payment_status: "pending" }],
+        // Exclude Card orders that haven't been paid or failed — only paid Card orders need admin action
+        [Op.not]: { payment_method: "Card", payment_status: { [Op.in]: ["pending", "failed"] } },
       },
       order: [["created_at", "ASC"]], // oldest first — needs attention soonest
       attributes: [
@@ -313,33 +313,6 @@ exports.readyOrder = async (req, res) => {
   }
 };
 
-// ─── PATCH /api/orders/online/:id/mark-paid ──────────────────────────────────
-// Staff marks a cash/COD online order as paid
-exports.markOrderPaid = async (req, res) => {
-  try {
-    const order = await Order.findByPk(req.params.id);
-    if (!order || order.source !== "online") {
-      return res
-        .status(404)
-        .json({ success: false, message: "Online order not found" });
-    }
-    order.payment_status = "paid";
-    if (req.body.payment_method) {
-      order.payment_method = req.body.payment_method;
-    }
-    await order.save();
-    return res.status(200).json({
-      success: true,
-      message: "Order marked as paid",
-      payment_status: "paid",
-    });
-  } catch (err) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to mark order as paid" });
-  }
-};
-
 // ─── PATCH /api/orders/online/:id/complete ───────────────────────────────────
 // Staff marks an accepted order as delivered/completed
 exports.completeOrder = async (req, res) => {
@@ -361,5 +334,35 @@ exports.completeOrder = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Failed to complete order" });
+  }
+};
+
+// ─── PATCH /api/orders/online/:id/mark-paid ──────────────────────────────────
+// Staff — mark a "Pay on Collection" order as paid, recording how customer paid
+exports.markAsPaid = async (req, res) => {
+  try {
+    const { payment_method } = req.body || {};
+    if (!["Cash", "Card on Collection"].includes(payment_method)) {
+      return res.status(400).json({
+        success: false,
+        message: "payment_method must be 'Cash' or 'Card on Collection'",
+      });
+    }
+
+    const order = await Order.findByPk(req.params.id);
+    if (!order || order.source !== "online") {
+      return res.status(404).json({ success: false, message: "Online order not found" });
+    }
+
+    await order.update({ payment_status: "paid", payment_method });
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment recorded",
+      payment_status: "paid",
+      payment_method,
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Failed to record payment" });
   }
 };
