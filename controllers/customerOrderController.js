@@ -27,7 +27,7 @@ exports.placeOrder = async (req, res) => {
     const {
       order_type,        // 'Eat In' | 'Takeaway'
       items,             // [{ id, name, price, qty }]
-      payment_method,    // 'Cash' | 'Pay at Collection'
+      payment_method,    // 'Pay on Collection' | 'Card'
       pickup_time,       // optional — for takeaway: "HH:mm dd/MM/yyyy"
       table_number,      // optional — for eat_in
       covers,            // optional — for eat_in
