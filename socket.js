@@ -15,6 +15,8 @@ exports.init = (server) => {
       origin: allowedOrigins,
       methods: ["GET", "POST"],
     },
+    pingInterval: 10000,
+    pingTimeout: 5000,
   });
 
   io.on("connection", (socket) => {
