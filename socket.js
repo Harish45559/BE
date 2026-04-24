@@ -4,6 +4,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://fe-2n6s.onrender.com",
+  /https:\/\/.*\.onrender\.com$/,
 ];
 
 let io;
