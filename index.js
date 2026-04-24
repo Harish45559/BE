@@ -172,7 +172,23 @@ async function runMigrations() {
     }
   }
 
-  // 12. favourites column on customers
+  // 12. available column on menu_items
+  try {
+    await qi.addColumn("menu_items", "available", {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    });
+    console.log("✅ Migration: available column added to menu_items");
+  } catch (err) {
+    if (err.message.includes("already exists")) {
+      console.log("ℹ️  Migration: available already exists — skipped");
+    } else {
+      console.error("⚠️  Migration available failed:", err.message);
+    }
+  }
+
+  // 14. favourites column on customers
   try {
     await qi.addColumn("customers", "favourites", {
       type: DataTypes.JSONB,
@@ -188,7 +204,7 @@ async function runMigrations() {
     }
   }
 
-  // 11. online_orders_enabled column on time_slot_settings
+  // 15. online_orders_enabled column on time_slot_settings
   try {
     await qi.addColumn("time_slot_settings", "online_orders_enabled", {
       type: DataTypes.BOOLEAN,
