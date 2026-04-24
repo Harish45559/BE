@@ -31,7 +31,11 @@ const validatePassword = [
 
 // PUT /api/customer/profile           — update name, phone, address
 // PUT /api/customer/profile/password  — change password
+// GET /api/customer/profile/favourites
+// POST /api/customer/profile/favourites/toggle/:itemId
 router.put("/", validateProfile, customerProfileController.updateProfile);
 router.put("/password", validatePassword, customerProfileController.changePassword);
+router.get("/favourites", customerProfileController.getFavourites);
+router.post("/favourites/toggle/:itemId", customerProfileController.toggleFavourite);
 
 module.exports = router;

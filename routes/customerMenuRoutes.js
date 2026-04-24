@@ -15,7 +15,7 @@ router.get("/", async (req, res) => {
 
     const items = await MenuItem.findAll({
       where: whereClause,
-      attributes: ["id", "name", "price", "is_veg", "image_url", "categoryId"],
+      attributes: ["id", "name", "price", "is_veg", "image_url", "categoryId", "available"],
       include: [
         { model: Category, as: "category", attributes: ["id", "name"] },
       ],

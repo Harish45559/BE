@@ -1,6 +1,7 @@
 const { Order, Customer, TimeSlotSettings } = require("../models");
 const { Op } = require("sequelize");
 const { DateTime } = require("luxon");
+const { getIo } = require("../socket");
 
 async function getOrCreateSettings() {
   let s = await TimeSlotSettings.findByPk(1);
@@ -222,6 +223,8 @@ exports.acceptOrder = async (req, res) => {
     order.estimated_ready = readyAt;
     await order.save();
 
+    try { getIo().emit("order:status-changed", { id: order.id, order_number: order.order_number, order_status: "accepted", customer_id: order.customer_id }); } catch (_) {}
+
     return res.status(200).json({
       success: true,
       message: "Order accepted",
@@ -246,6 +249,7 @@ exports.rejectOrder = async (req, res) => {
     }
     order.order_status = "rejected";
     await order.save();
+    try { getIo().emit("order:status-changed", { id: order.id, order_number: order.order_number, order_status: "rejected", customer_id: order.customer_id }); } catch (_) {}
     return res.status(200).json({
       success: true,
       message: "Order rejected",
@@ -303,6 +307,7 @@ exports.readyOrder = async (req, res) => {
     }
     order.order_status = "ready";
     await order.save();
+    try { getIo().emit("order:status-changed", { id: order.id, order_number: order.order_number, order_status: "ready", customer_id: order.customer_id }); } catch (_) {}
     return res.status(200).json({
       success: true,
       message: "Order marked as ready",
@@ -325,6 +330,7 @@ exports.completeOrder = async (req, res) => {
     }
     order.order_status = "completed";
     await order.save();
+    try { getIo().emit("order:status-changed", { id: order.id, order_number: order.order_number, order_status: "completed", customer_id: order.customer_id }); } catch (_) {}
     return res.status(200).json({
       success: true,
       message: "Order marked as delivered",

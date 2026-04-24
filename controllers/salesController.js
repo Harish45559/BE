@@ -34,7 +34,7 @@ exports.getSalesSummary = async (req, res) => {
       .filter((o) => o.payment_method === "Cash")
       .reduce((s, o) => s + money(o), 0);
     const cardSales = orders
-      .filter((o) => o.payment_method === "Card")
+      .filter((o) => o.payment_method === "Card" || o.payment_method === "Card on Collection")
       .reduce((s, o) => s + money(o), 0);
 
     res.json({ totalSales, cashSales, cardSales });

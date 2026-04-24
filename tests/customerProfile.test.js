@@ -123,6 +123,50 @@ describe("PUT /api/customer/profile", () => {
 });
 
 // ──────────────────────────────────────────────
+// GET /api/customer/profile/favourites
+// POST /api/customer/profile/favourites/toggle/:itemId
+// ──────────────────────────────────────────────
+describe("Favourites endpoints", () => {
+  test("GET /api/customer/profile/favourites returns 401 without token", async () => {
+    const res = await request(app).get("/api/customer/profile/favourites");
+    expect(res.statusCode).toBe(401);
+  });
+
+  test("POST /api/customer/profile/favourites/toggle/:itemId returns 401 without token", async () => {
+    const res = await request(app).post("/api/customer/profile/favourites/toggle/1");
+    expect(res.statusCode).toBe(401);
+  });
+
+  test("GET returns 200 and an array (empty for new customer)", async () => {
+    const res = await request(app)
+      .get("/api/customer/profile/favourites")
+      .set("Authorization", `Bearer ${customerToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body.favourites)).toBe(true);
+  });
+
+  test("toggle adds an item id to favourites", async () => {
+    const res = await request(app)
+      .post("/api/customer/profile/favourites/toggle/42")
+      .set("Authorization", `Bearer ${customerToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.body.favourites)).toBe(true);
+    expect(res.body.favourites).toContain(42);
+  });
+
+  test("toggle again removes the item from favourites", async () => {
+    const res = await request(app)
+      .post("/api/customer/profile/favourites/toggle/42")
+      .set("Authorization", `Bearer ${customerToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.favourites).not.toContain(42);
+  });
+});
+
+// ──────────────────────────────────────────────
 // PUT /api/customer/profile/password
 // ──────────────────────────────────────────────
 describe("PUT /api/customer/profile/password", () => {

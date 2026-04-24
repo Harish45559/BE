@@ -8,6 +8,7 @@ const isProduction = process.env.NODE_ENV === "production";
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: "postgres",
   logging: false,
+  timezone: "+00:00",
   dialectOptions: isProduction
     ? {
         ssl: {

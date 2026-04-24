@@ -89,3 +89,34 @@ exports.changePassword = async (req, res) => {
     return res.status(500).json({ success: false, message: "Failed to change password" });
   }
 };
+
+// GET /api/customer/profile/favourites
+exports.getFavourites = async (req, res) => {
+  try {
+    const customer = await Customer.findByPk(req.customer.id, { attributes: ["favourites"] });
+    return res.status(200).json({ success: true, favourites: customer.favourites || [] });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Failed to fetch favourites" });
+  }
+};
+
+// POST /api/customer/profile/favourites/toggle/:itemId
+exports.toggleFavourite = async (req, res) => {
+  try {
+    const itemId = parseInt(req.params.itemId);
+    if (isNaN(itemId)) {
+      return res.status(400).json({ success: false, message: "Invalid item id" });
+    }
+    const customer = await Customer.findByPk(req.customer.id);
+    const current = customer.favourites || [];
+    const updated = current.includes(itemId)
+      ? current.filter((id) => id !== itemId)
+      : [...current, itemId];
+    customer.favourites = updated;
+    customer.changed("favourites", true);
+    await customer.save();
+    return res.status(200).json({ success: true, favourites: updated });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Failed to update favourites" });
+  }
+};
