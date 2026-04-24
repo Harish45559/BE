@@ -1,5 +1,6 @@
 const { Order, Customer, MenuItem, TimeSlotSettings } = require("../models");
 const { DateTime } = require("luxon");
+const { getIo } = require("../socket");
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,8 @@ exports.placeOrder = async (req, res) => {
       pickup_time: pickup_time || null,
       payment_status: "pending",  // customer pays on collection / at truck
     });
+
+    try { getIo().emit("order:new", { id: order.id, order_number: order.order_number, customer_id: order.customer_id }); } catch (_) {}
 
     return res.status(201).json({
       success: true,

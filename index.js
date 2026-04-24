@@ -1,8 +1,10 @@
+const http = require("http");
 const bcrypt = require("bcryptjs");
 const { DataTypes } = require("sequelize");
 const db = require("./config/db");
 const { Employee } = require("./models");
 const app = require("./app");
+const { init: initSocket } = require("./socket");
 
 /* ================= AUTO-MIGRATIONS ================= */
 
@@ -170,6 +172,22 @@ async function runMigrations() {
     }
   }
 
+  // 12. favourites column on customers
+  try {
+    await qi.addColumn("customers", "favourites", {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: [],
+    });
+    console.log("✅ Migration: favourites column added to customers");
+  } catch (err) {
+    if (err.message.includes("already exists")) {
+      console.log("ℹ️  Migration: favourites already exists — skipped");
+    } else {
+      console.error("⚠️  Migration favourites failed:", err.message);
+    }
+  }
+
   // 11. online_orders_enabled column on time_slot_settings
   try {
     await qi.addColumn("time_slot_settings", "online_orders_enabled", {
@@ -241,7 +259,9 @@ runMigrations()
 
     const PORT = process.env.PORT || 5000;
 
-    app.listen(PORT, () => {
+    const server = http.createServer(app);
+    initSocket(server);
+    server.listen(PORT, () => {
       console.log(`🚀 Backend running on port ${PORT}`);
     });
   })

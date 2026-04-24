@@ -20,9 +20,14 @@ const MenuItem = sequelize.define('MenuItem', {
     type: DataTypes.INTEGER,
     allowNull: false
   },
-  image_url: {                    // ✅ NEW FIELD
+  image_url: {
     type: DataTypes.STRING,
-    allowNull: true               // optional (if you don't have image now)
+    allowNull: true
+  },
+  available: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true
   }
 }, {
   tableName: 'menu_items',

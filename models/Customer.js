@@ -44,6 +44,12 @@ const Customer = sequelize.define(
       allowNull: false,
     },
 
+    favourites: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: [],
+    },
+
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

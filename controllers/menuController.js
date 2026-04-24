@@ -1,8 +1,6 @@
 const { MenuItem, Category } = require("../models");
+const { getIo } = require("../socket");
 
-/**
- * Helper to coerce incoming values safely
- */
 function coerceBool(v) {
   return v === true || v === "true" || v === 1 || v === "1";
 }
@@ -15,16 +13,19 @@ function coerceNumber(v) {
 // CREATE
 exports.createMenuItem = async (req, res) => {
   try {
-    const name = (req.body.name || "").trim();
-    const price = coerceNumber(req.body.price);
-    const is_veg = coerceBool(req.body.is_veg);
+    const name       = (req.body.name || "").trim();
+    const price      = coerceNumber(req.body.price);
+    const is_veg     = coerceBool(req.body.is_veg);
     const categoryId = coerceNumber(req.body.categoryId);
+    const available  = req.body.available !== undefined
+      ? coerceBool(req.body.available)
+      : true;
 
     if (!name || price === undefined) {
       return res.status(400).json({ error: "name and price are required" });
     }
 
-    const payload = { name, price, is_veg };
+    const payload = { name, price, is_veg, available };
     if (categoryId !== undefined) payload.categoryId = categoryId;
 
     const item = await MenuItem.create(payload);
@@ -35,21 +36,19 @@ exports.createMenuItem = async (req, res) => {
   }
 };
 
-// READ (all)
-// READ (all) - with optional category filter
+// READ (all) — admin sees everything including unavailable
 exports.getAllMenuItems = async (req, res) => {
-  // ✅ change _req to req
   try {
-    const { category_id } = req.query; // ✅ read the query param
+    const { category_id } = req.query;
 
     const whereClause = {};
     if (category_id) {
-      whereClause.categoryId = parseInt(category_id); // ✅ apply filter
+      whereClause.categoryId = parseInt(category_id);
     }
 
     const items = await MenuItem.findAll({
-      where: whereClause, // ✅ add this
-      attributes: ["id", "name", "price", "is_veg", "categoryId"],
+      where: whereClause,
+      attributes: ["id", "name", "price", "is_veg", "image_url", "categoryId", "available"],
       include: [
         { model: Category, as: "category", attributes: ["id", "name"] },
       ],
@@ -66,25 +65,21 @@ exports.getAllMenuItems = async (req, res) => {
 exports.updateMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const name =
-      req.body.name !== undefined ? String(req.body.name).trim() : undefined;
-    const price =
-      req.body.price !== undefined ? coerceNumber(req.body.price) : undefined;
-    const is_veg =
-      req.body.is_veg !== undefined ? coerceBool(req.body.is_veg) : undefined;
+    const name        = req.body.name !== undefined ? String(req.body.name).trim() : undefined;
+    const price       = req.body.price !== undefined ? coerceNumber(req.body.price) : undefined;
+    const is_veg      = req.body.is_veg !== undefined ? coerceBool(req.body.is_veg) : undefined;
     const categoryIdRaw = req.body.categoryId;
-    const categoryId =
-      categoryIdRaw !== undefined ? coerceNumber(categoryIdRaw) : undefined;
+    const categoryId  = categoryIdRaw !== undefined ? coerceNumber(categoryIdRaw) : undefined;
+    const available   = req.body.available !== undefined ? coerceBool(req.body.available) : undefined;
 
     const payload = {};
-    if (name !== undefined) payload.name = name;
-    if (price !== undefined) payload.price = price;
-    if (is_veg !== undefined) payload.is_veg = is_veg;
+    if (name      !== undefined) payload.name      = name;
+    if (price     !== undefined) payload.price     = price;
+    if (is_veg    !== undefined) payload.is_veg    = is_veg;
+    if (available !== undefined) payload.available = available;
     if (categoryIdRaw !== undefined) {
       if (categoryId === undefined) {
-        return res
-          .status(400)
-          .json({ error: "categoryId must be a number if provided" });
+        return res.status(400).json({ error: "categoryId must be a number if provided" });
       }
       payload.categoryId = categoryId;
     }
@@ -94,7 +89,7 @@ exports.updateMenuItem = async (req, res) => {
       return res.status(404).json({ error: "Menu item not found" });
     }
     const fresh = await MenuItem.findByPk(id, {
-      attributes: ["id", "name", "price", "is_veg", "categoryId"],
+      attributes: ["id", "name", "price", "is_veg", "image_url", "categoryId", "available"],
       include: [
         { model: Category, as: "category", attributes: ["id", "name"] },
       ],
@@ -103,6 +98,27 @@ exports.updateMenuItem = async (req, res) => {
   } catch (err) {
     console.error("Update error:", err);
     res.status(500).json({ error: "Failed to update item" });
+  }
+};
+
+// TOGGLE AVAILABILITY — PATCH /api/menu/:id/toggle-availability
+exports.toggleAvailability = async (req, res) => {
+  try {
+    const item = await MenuItem.findByPk(req.params.id);
+    if (!item) {
+      return res.status(404).json({ error: "Menu item not found" });
+    }
+    await item.update({ available: !item.available });
+    try { getIo().emit("menu:availability-changed", { id: item.id, available: !!item.available }); } catch (_) {}
+    return res.json({
+      success:   true,
+      id:        item.id,
+      name:      item.name,
+      available: item.available,
+    });
+  } catch (err) {
+    console.error("Toggle availability error:", err);
+    res.status(500).json({ error: "Failed to toggle availability" });
   }
 };
 

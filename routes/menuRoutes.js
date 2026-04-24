@@ -7,6 +7,7 @@ router.use(authMiddleware);
 router.get("/", menu.getAllMenuItems);
 router.post("/", menu.createMenuItem);
 router.put("/:id", menu.updateMenuItem);
+router.patch("/:id/toggle-availability", menu.toggleAvailability);
 router.delete("/:id", menu.deleteMenuItem);
 
 module.exports = router;
