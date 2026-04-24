@@ -1,28 +1,20 @@
 const { Order } = require("../models");
+const SumUp = require("@sumup/sdk").default;
 
-// ─── STRIPE (commented out — replaced by SumUp) ──────────────────────────────
-// const Stripe = require("stripe");
-// let _stripe = null;
-// function getStripe() {
-//   if (!_stripe) {
-//     if (!process.env.STRIPE_SECRET_KEY) {
-//       throw new Error("STRIPE_SECRET_KEY environment variable is not set");
-//     }
-//     _stripe = Stripe(process.env.STRIPE_SECRET_KEY);
-//   }
-//   return _stripe;
-// }
-
-// exports.createPaymentIntent = async (req, res) => { ... }   // Stripe
-// exports.confirmPayment      = async (req, res) => { ... }   // Stripe
-// exports.stripeWebhook       = async (req, res) => { ... }   // Stripe
-
-// ─── SUMUP ────────────────────────────────────────────────────────────────────
-
-function getSumUpHeaders() {
+// ─── SumUp SDK client (lazy — only created when first needed) ─────────────────
+let _sumup = null;
+function getSumUpClient() {
   if (!process.env.SUMUP_API_KEY) {
     throw new Error("SUMUP_API_KEY environment variable is not set");
   }
+  if (!_sumup) {
+    _sumup = new SumUp({ apiKey: process.env.SUMUP_API_KEY });
+  }
+  return _sumup;
+}
+
+// Keep raw fetch headers for verify/webhook (SDK doesn't expose a checkouts.get())
+function getSumUpHeaders() {
   return {
     Authorization: `Bearer ${process.env.SUMUP_API_KEY}`,
     "Content-Type": "application/json",
@@ -46,32 +38,22 @@ exports.createCheckout = async (req, res) => {
       return res.status(400).json({ success: false, message: "Order is already paid" });
     }
 
-    const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
+    const client   = getSumUpClient();
+    const baseUrl  = process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
 
-    const response = await fetch("https://api.sumup.com/v0.1/checkouts", {
-      method: "POST",
-      headers: getSumUpHeaders(),
-      body: JSON.stringify({
-        checkout_reference: `ORDER-${order.id}`,
-        amount: order.final_amount,
-        currency: "GBP",
-        merchant_code: process.env.SUMUP_MERCHANT_CODE,
-        description: `Mirchi Mafia — Order ${order.order_number}`,
-        return_url: `${baseUrl}/api/customer/payments/webhook`,
-      }),
+    const checkout = await client.checkouts.create({
+      checkout_reference: `ORDER-${order.id}`,
+      amount:             order.final_amount,
+      currency:           "GBP",
+      merchant_code:      process.env.SUMUP_MERCHANT_CODE,
+      description:        `Mirchi Mafia — Order ${order.order_number}`,
+      return_url:         `${baseUrl}/api/customer/payments/webhook`,
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("SumUp createCheckout error:", data);
-      return res.status(500).json({ success: false, message: "Failed to create payment" });
-    }
-
     return res.status(200).json({
-      success: true,
-      checkoutId: data.id,
-      amount: order.final_amount,
+      success:    true,
+      checkoutId: checkout.id,
+      amount:     order.final_amount,
     });
   } catch (err) {
     console.error("createCheckout error:", err.message);
