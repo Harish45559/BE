@@ -201,6 +201,46 @@ describe("PUT /api/menu/:id", () => {
   });
 });
 
+// ──────────────────────────────────────────────
+// PATCH /api/menu/:id/toggle-availability
+// ──────────────────────────────────────────────
+describe("PATCH /api/menu/:id/toggle-availability", () => {
+  test("returns 401 without token", async () => {
+    const res = await request(app).patch("/api/menu/1/toggle-availability");
+    expect(res.statusCode).toBe(401);
+  });
+
+  test("returns 404 for non-existent menu item", async () => {
+    const res = await request(app)
+      .patch("/api/menu/999999/toggle-availability")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  test("returns 200 and flips available from true to false", async () => {
+    const res = await request(app)
+      .patch(`/api/menu/${createdMenuItemId}/toggle-availability`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveProperty("available");
+    expect(typeof res.body.available).toBe("boolean");
+  });
+
+  test("calling toggle twice restores original availability", async () => {
+    const first = await request(app)
+      .patch(`/api/menu/${createdMenuItemId}/toggle-availability`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    const second = await request(app)
+      .patch(`/api/menu/${createdMenuItemId}/toggle-availability`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(first.body.available).toBe(!second.body.available);
+  });
+});
+
 describe("DELETE /api/categories/:id — blocked by menu items", () => {
   test("returns 400 when menu items exist under the category", async () => {
     const res = await request(app)
