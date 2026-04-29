@@ -32,6 +32,7 @@ exports.placeOrder = async (req, res) => {
       pickup_time,       // optional — for takeaway: "HH:mm dd/MM/yyyy"
       table_number,      // optional — for eat_in
       covers,            // optional — for eat_in
+      customer_notes,    // optional — special requests e.g. "no onions"
     } = req.body;
 
     // ── Check online orders enabled ───────────────────────────────────────────
@@ -115,6 +116,7 @@ exports.placeOrder = async (req, res) => {
       customer_id: customer.id,
       pickup_time: pickup_time || null,
       payment_status: "pending",  // customer pays on collection / at truck
+      customer_notes: customer_notes ? customer_notes.trim().slice(0, 500) : null,
     });
 
     try { getIo().emit("order:new", { id: order.id, order_number: order.order_number, customer_id: order.customer_id }); } catch (_) {}
@@ -154,7 +156,7 @@ exports.getMyOrders = async (req, res) => {
         "id", "order_number", "order_type", "items",
         "total_amount", "final_amount", "payment_method",
         "payment_status", "order_status", "estimated_ready",
-        "pickup_time", "date", "pager_status",
+        "pickup_time", "date", "pager_status", "customer_notes",
       ],
     });
 
@@ -174,7 +176,7 @@ exports.getOrderById = async (req, res) => {
         "id", "order_number", "order_type", "items",
         "total_amount", "final_amount", "payment_method",
         "payment_status", "order_status", "estimated_ready",
-        "pickup_time", "date", "pager_status",
+        "pickup_time", "date", "pager_status", "customer_notes",
       ],
     });
 

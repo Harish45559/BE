@@ -172,7 +172,23 @@ async function runMigrations() {
     }
   }
 
-  // 12. available column on menu_items
+  // 12. customer_notes column on orders
+  try {
+    await qi.addColumn("orders", "customer_notes", {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: null,
+    });
+    console.log("✅ Migration: customer_notes column added to orders");
+  } catch (err) {
+    if (err.message.includes("already exists")) {
+      console.log("ℹ️  Migration: customer_notes already exists — skipped");
+    } else {
+      console.error("⚠️  Migration customer_notes failed:", err.message);
+    }
+  }
+
+  // 13. available column on menu_items
   try {
     await qi.addColumn("menu_items", "available", {
       type: DataTypes.BOOLEAN,

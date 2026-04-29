@@ -124,6 +124,13 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: null,
       comment: 'Staff-set estimated ready time e.g. "14:45"',
     },
+
+    customer_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: null,
+      comment: 'Customer special requests e.g. no onions, less spicy',
+    },
   }, {
     timestamps: false,
     tableName: 'orders'
