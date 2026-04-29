@@ -59,6 +59,7 @@ exports.getOnlineOrders = async (req, res) => {
         "date",
         "pager_status",
         "customer_id",
+        "customer_notes",
       ],
     });
 
@@ -132,6 +133,7 @@ exports.getPendingOnlineOrders = async (req, res) => {
         "date",
         "pager_status",
         "customer_id",
+        "customer_notes",
       ],
     });
 

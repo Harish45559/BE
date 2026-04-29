@@ -55,6 +55,15 @@ exports.downloadReceipt = async (req, res) => {
 
         { text: "--------------------------------", style: "divider" },
 
+        // Notes
+        ...(order.customer_notes
+          ? [
+              { text: "Notes:", style: "info", bold: true },
+              { text: order.customer_notes, style: "info", italics: true },
+              { text: "--------------------------------", style: "divider" },
+            ]
+          : []),
+
         // Total
         {
           columns: [
