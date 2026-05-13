@@ -45,8 +45,10 @@ describe("GET /api/customer/timeslots", () => {
   });
 
   test("returns same slots for any date (slots based on settings, not date)", async () => {
-    const r1 = await request(app).get("/api/customer/timeslots?date=2026-05-01");
-    const r2 = await request(app).get("/api/customer/timeslots?date=2026-05-08");
+    const future1 = new Date(Date.now() + 7  * 86400000).toISOString().split("T")[0];
+    const future2 = new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0];
+    const r1 = await request(app).get(`/api/customer/timeslots?date=${future1}`);
+    const r2 = await request(app).get(`/api/customer/timeslots?date=${future2}`);
     // Slot count should match (same settings)
     expect(r1.body.slots.length).toBe(r2.body.slots.length);
   });
@@ -198,13 +200,15 @@ describe("PUT /api/orders/timeslots/settings", () => {
   });
 
   test("changing interval affects the number of slots returned", async () => {
+    const futureDate = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+
     // Set to 60-min slots
     await request(app)
       .put("/api/orders/timeslots/settings")
       .set("Authorization", `Bearer ${adminToken}`)
       .send({ opening_time: "18:00", closing_time: "22:00", slot_interval_minutes: 60 });
 
-    const hourly = await request(app).get("/api/customer/timeslots?date=2026-05-01");
+    const hourly = await request(app).get(`/api/customer/timeslots?date=${futureDate}`);
 
     // Set to 30-min slots
     await request(app)
@@ -212,7 +216,7 @@ describe("PUT /api/orders/timeslots/settings", () => {
       .set("Authorization", `Bearer ${adminToken}`)
       .send({ opening_time: "18:00", closing_time: "22:00", slot_interval_minutes: 30 });
 
-    const halfHourly = await request(app).get("/api/customer/timeslots?date=2026-05-01");
+    const halfHourly = await request(app).get(`/api/customer/timeslots?date=${futureDate}`);
 
     // 30-min slots should produce roughly double the count
     expect(halfHourly.body.slots.length).toBeGreaterThan(hourly.body.slots.length);
