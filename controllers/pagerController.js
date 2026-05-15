@@ -356,7 +356,7 @@ exports.servePagerPage = (req, res) => {
     }
     // ──────────────────────────────────────────────────────────────────────────
 
-    async function activate() {
+    function activate() {
       // Unlock AudioContext on user gesture
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const buf = audioCtx.createBuffer(1, 1, 22050);
@@ -406,11 +406,12 @@ exports.servePagerPage = (req, res) => {
       document.getElementById('activate-overlay').style.display = 'none';
       document.getElementById('main-card').style.display = 'block';
 
-      // Start PiP immediately — must be called directly in user gesture context
-      await startPip('');
-
+      // Start polling immediately (iOS-safe — not blocked by PiP)
       checkStatus();
       pollInterval = setInterval(checkStatus, 5000);
+
+      // Start PiP non-blocking — Android only, iOS returns immediately
+      startPip('');
     }
 
     // Speak the message N times, with a gap between each
