@@ -234,7 +234,7 @@ exports.servePagerPage = (req, res) => {
   <div id="activate-overlay">
     <img src="/public/logo.png" alt="Mirchi Mafia" />
     <h2>Track Your Order</h2>
-    <p>Tap below — we'll <strong>speak &amp; notify you</strong> the moment your meal is ready, even if your screen is off.</p>
+    <p>Tap below — a <strong>floating widget</strong> will appear so you can switch apps and still see when your meal is ready.</p>
     <button id="tap-btn" onclick="activate()">👆 Tap to Start Tracking</button>
   </div>
 
@@ -290,12 +290,73 @@ exports.servePagerPage = (req, res) => {
   <script>
     const TOKEN = '${token}';
     let pollInterval = null;
-    let lastSeenRingCount = 0; // tracks how many times we've already buzzed
+    let lastSeenRingCount = 0;
     let audioCtx = null;
     let wakeLock = null;
-    let pendingReadyAlert = null; // stores alert data when tab is backgrounded
+    let pendingReadyAlert = null;
+    let pipVideo = null;
 
-    function activate() {
+    // ── Picture-in-Picture floating status widget ──────────────────────────────
+    var pipCanvas = document.createElement('canvas');
+    pipCanvas.width = 480; pipCanvas.height = 270;
+    var pipCtx = pipCanvas.getContext('2d');
+
+    function drawPip(status, orderNum) {
+      var w = pipCanvas.width, h = pipCanvas.height;
+      pipCtx.clearRect(0, 0, w, h);
+      if (status === 'ready') {
+        pipCtx.fillStyle = '#16a34a';
+      } else {
+        pipCtx.fillStyle = '#1a0a00';
+      }
+      pipCtx.fillRect(0, 0, w, h);
+      pipCtx.textAlign = 'center';
+      if (status === 'ready') {
+        pipCtx.font = 'bold 52px sans-serif';
+        pipCtx.fillStyle = '#fff';
+        pipCtx.fillText('🍽️ ORDER READY!', w / 2, h / 2 - 20);
+        pipCtx.font = '28px sans-serif';
+        pipCtx.fillText('Come to the counter', w / 2, h / 2 + 30);
+      } else {
+        pipCtx.font = 'bold 36px sans-serif';
+        pipCtx.fillStyle = '#f97316';
+        pipCtx.fillText('Mirchi Mafiya', w / 2, h / 2 - 40);
+        pipCtx.font = '28px sans-serif';
+        pipCtx.fillStyle = '#fff';
+        pipCtx.fillText('Preparing your order...', w / 2, h / 2 + 10);
+        if (orderNum) {
+          pipCtx.font = '22px sans-serif';
+          pipCtx.fillStyle = '#f97316';
+          pipCtx.fillText('Order #' + orderNum, w / 2, h / 2 + 50);
+        }
+      }
+    }
+
+    async function startPip(orderNum) {
+      if (!document.pictureInPictureEnabled) return;
+      if (!pipCanvas.captureStream) return;
+      try {
+        drawPip('waiting', orderNum);
+        var stream = pipCanvas.captureStream(1);
+        pipVideo = document.createElement('video');
+        pipVideo.srcObject = stream;
+        pipVideo.muted = true;
+        // Must be in DOM and visible (even 1px) for PiP to work on some browsers
+        pipVideo.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0.01;top:0;left:0;pointer-events:none;';
+        document.body.appendChild(pipVideo);
+        await pipVideo.play();
+        await pipVideo.requestPictureInPicture();
+      } catch(e) {
+        console.log('PiP not available:', e.message);
+      }
+    }
+
+    function updatePip(status, orderNum) {
+      drawPip(status, orderNum);
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
+    async function activate() {
       // Unlock AudioContext on user gesture
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const buf = audioCtx.createBuffer(1, 1, 22050);
@@ -312,12 +373,12 @@ exports.servePagerPage = (req, res) => {
         window.speechSynthesis.speak(unlock);
       }
 
-      // Request browser notification permission (needed for background alerts)
+      // Request notification permission
       if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
       }
 
-      // Wake Lock — keeps screen on so speech fires without the user unlocking
+      // Wake Lock — keeps screen on
       if ('wakeLock' in navigator) {
         navigator.wakeLock.request('screen').then(function(wl) {
           wakeLock = wl;
@@ -344,6 +405,9 @@ exports.servePagerPage = (req, res) => {
 
       document.getElementById('activate-overlay').style.display = 'none';
       document.getElementById('main-card').style.display = 'block';
+
+      // Start PiP immediately — must be called directly in user gesture context
+      await startPip('');
 
       checkStatus();
       pollInterval = setInterval(checkStatus, 5000);
@@ -438,6 +502,9 @@ exports.servePagerPage = (req, res) => {
     }
 
     function showReady(data) {
+      // Update PiP widget to "ready" state — visible even when browser is backgrounded
+      updatePip('ready', data.orderNumber);
+
       document.getElementById('waiting-section').style.display = 'none';
       document.getElementById('ready-order-number').textContent = '#' + data.orderNumber;
       document.getElementById('ready-customer-name').textContent = data.customerName;

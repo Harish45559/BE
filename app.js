@@ -100,6 +100,7 @@ app.use("/api/pager", pagerRoutes);
 /* ================= STATIC PUBLIC ASSETS ================= */
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
+
 /* ================= PAGER — public customer page ================= */
 app.get("/pager/:token", servePagerPage);
 
