@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Order Online — Mirchi Mafiya</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #fff8f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 4px 32px rgba(221,58,0,0.10);
+      max-width: 480px;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #dd3a00, #ff6b35);
+      padding: 32px 24px 24px;
+      text-align: center;
+      color: #fff;
+    }
+    .header-logo { font-size: 2.4rem; margin-bottom: 6px; }
+    .header-name {
+      font-size: 1.55rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    .header-sub {
+      font-size: 0.9rem;
+      opacity: 0.88;
+      margin-top: 4px;
+    }
+
+    /* ── QR section ── */
+    .qr-section {
+      padding: 28px 24px 20px;
+      text-align: center;
+      border-bottom: 1.5px dashed #ffe0d0;
+    }
+    .qr-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #dd3a00;
+      margin-bottom: 14px;
+    }
+    .qr-box {
+      display: inline-block;
+      padding: 12px;
+      border-radius: 16px;
+      border: 3px solid #dd3a00;
+      background: #fff;
+      margin-bottom: 14px;
+    }
+    .qr-box img {
+      display: block;
+      width: 180px;
+      height: 180px;
+    }
+    .qr-url {
+      font-size: 0.72rem;
+      color: #999;
+      word-break: break-all;
+      padding: 0 12px;
+    }
+
+    /* ── Steps ── */
+    .steps {
+      padding: 24px 24px 20px;
+    }
+    .steps-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #dd3a00;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #dd3a00;
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step-body { flex: 1; padding-top: 4px; }
+    .step-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #1a1a1a;
+      margin-bottom: 2px;
+    }
+    .step-desc {
+      font-size: 0.82rem;
+      color: #666;
+      line-height: 1.5;
+    }
+    .step-desc b { color: #dd3a00; font-weight: 700; }
+
+    /* ── Footer ── */
+    .footer {
+      background: #fff3ee;
+      border-top: 1.5px dashed #ffe0d0;
+      padding: 16px 24px;
+      text-align: center;
+    }
+    .footer-note {
+      font-size: 0.8rem;
+      color: #999;
+      line-height: 1.6;
+    }
+    .footer-note b { color: #dd3a00; }
+
+    /* ── Print ── */
+    @media print {
+      body { background: #fff; padding: 0; }
+      .card { box-shadow: none; border: 1px solid #ddd; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="header-logo">🌶️</div>
+      <div class="header-name">Mirchi Mafiya</div>
+      <div class="header-sub">Scan &amp; Order Online — Quick &amp; Easy</div>
+    </div>
+
+    <!-- QR Code -->
+    <div class="qr-section">
+      <div class="qr-label">Scan to Order</div>
+      <div class="qr-box">
+        <!--
+          QR encodes: https://fe-2n6s.onrender.com/customer/login
+          Generated via api.qrserver.com (no signup needed, free)
+        -->
+        <img
+          src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https%3A%2F%2Ffe-2n6s.onrender.com%2Fcustomer%2Flogin&color=dd3a00&bgcolor=ffffff&margin=4"
+          alt="QR code to online ordering"
+        />
+      </div>
+      <div class="qr-url">https://fe-2n6s.onrender.com/customer/login</div>
+    </div>
+
+    <!-- Steps -->
+    <div class="steps">
+      <div class="steps-title">How to place your order</div>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Scan the QR code</div>
+          <div class="step-desc">Open your phone camera and point it at the QR code above. Tap the link that appears.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Create an account or log in</div>
+          <div class="step-desc">First time? Tap <b>Register</b> and enter your name, email &amp; password. Takes less than a minute.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Browse the menu</div>
+          <div class="step-desc">Scroll through categories, tap any dish to add it to your cart. Use the <b>Veg / Non-Veg</b> filter or search by name.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Go to your cart</div>
+          <div class="step-desc">Tap the <b>cart icon</b> at the top. Review your items and quantities, then tap <b>Checkout</b>.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">Choose pickup time &amp; pay</div>
+          <div class="step-desc">Select your preferred pickup time. Pay <b>online by card</b> or choose <b>Pay on Collection</b>.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <div class="step-title">Wait for your order</div>
+          <div class="step-desc">You'll see your order status update live. Come in at your pickup time and collect your food!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-note">
+        Need help? Ask a member of staff.<br />
+        <b>Orders placed online go straight to our kitchen.</b>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
