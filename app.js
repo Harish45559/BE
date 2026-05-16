@@ -100,6 +100,19 @@ app.use("/api/pager", pagerRoutes);
 /* ================= STATIC PUBLIC ASSETS ================= */
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
+/* ================= ORDER INSTRUCTIONS PAGE ================= */
+const QRCode = require('qrcode');
+app.get('/order', async (req, res) => {
+  const orderUrl = `${process.env.FRONTEND_URL || 'https://fe-2n6s.onrender.com'}/customer/login`;
+  const qrDataUrl = await QRCode.toDataURL(orderUrl, {
+    width: 180, margin: 1,
+    color: { dark: '#dd3a00', light: '#ffffff' },
+  });
+  const html = fs.readFileSync(path.join(__dirname, 'public', 'order-instructions.html'), 'utf8');
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html.replace('__QR_DATA_URL__', qrDataUrl).replace('__ORDER_URL__', orderUrl));
+});
+
 
 /* ================= PAGER — public customer page ================= */
 app.get("/pager/:token", servePagerPage);
