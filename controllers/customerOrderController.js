@@ -85,7 +85,13 @@ exports.placeOrder = async (req, res) => {
       (sum, it) => sum + it.price * it.qty,
       0
     );
-    const final_amount = total_amount; // no discount on online orders for now
+
+    // 2nd anniversary discount — 10% off all online orders today only
+    const todayUK = DateTime.now().setZone("Europe/London").toISODate();
+    const ANNIVERSARY_DATE = "2026-05-18";
+    const discountPercent = todayUK === ANNIVERSARY_DATE ? 10 : 0;
+    const discount_amount = parseFloat(((total_amount * discountPercent) / 100).toFixed(2));
+    const final_amount = parseFloat((total_amount - discount_amount).toFixed(2));
 
     // ── Fetch customer details ────────────────────────────────────────────────
     const customer = await Customer.findByPk(req.customer.id);
@@ -106,9 +112,9 @@ exports.placeOrder = async (req, res) => {
       order_number,
       items: normalisedItems,
       total_amount: parseFloat(total_amount.toFixed(2)),
-      discount_percent: 0,
-      discount_amount: 0,
-      final_amount: parseFloat(final_amount.toFixed(2)),
+      discount_percent: discountPercent,
+      discount_amount: discount_amount,
+      final_amount: final_amount,
       payment_method,
       created_at: now.toUTC().toJSDate(),
       date: now.toFormat("dd/MM/yyyy HH:mm:ss"),
