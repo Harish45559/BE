@@ -22,15 +22,15 @@ const TimeSlotSettings = sequelize.define(
     opening_time: {
       type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: "17:00",
-      comment: "Store opening time for online takeaway slots HH:mm (UK local)",
+      defaultValue: "17:15",
+      comment: "Dinner opening time HH:mm (UK local)",
     },
 
     closing_time: {
       type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: "23:30",
-      comment: "Store closing time for online takeaway slots HH:mm (UK local)",
+      defaultValue: "22:45",
+      comment: "Dinner closing time HH:mm (UK local)",
     },
 
     prep_time_minutes: {
@@ -45,6 +45,20 @@ const TimeSlotSettings = sequelize.define(
       allowNull: false,
       defaultValue: true,
       comment: "Staff can toggle online ordering on/off",
+    },
+
+    breakfast_opening_time: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "09:00",
+      comment: "Breakfast window start HH:mm (UK local)",
+    },
+
+    breakfast_closing_time: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "12:00",
+      comment: "Breakfast window end HH:mm (UK local)",
     },
   },
   {

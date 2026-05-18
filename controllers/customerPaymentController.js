@@ -1,5 +1,6 @@
 const { Order } = require("../models");
 const SumUp = require("@sumup/sdk").default;
+const { getIo } = require("../socket");
 
 // ─── SumUp SDK client (lazy — only created when first needed) ─────────────────
 let _sumup = null;
@@ -95,6 +96,7 @@ exports.verifyPayment = async (req, res) => {
 
     if (checkout.status === "PAID") {
       await order.update({ payment_status: "paid", payment_method: "Card" });
+      try { getIo().emit("order:new", { id: order.id, order_number: order.order_number, customer_id: order.customer_id }); } catch (_) {}
       return res.status(200).json({ success: true });
     }
 
@@ -137,6 +139,7 @@ exports.sumupWebhook = async (req, res) => {
         { payment_status: "paid", payment_method: "Card" },
         { where: { id: orderId } }
       );
+      try { getIo().emit("order:new", { id: Number(orderId) }); } catch (_) {}
     }
 
     if (checkout.status === "FAILED") {
