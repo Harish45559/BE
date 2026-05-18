@@ -8,6 +8,7 @@ const { MenuItem, Category, TimeSlotSettings } = require("../models");
 const BREAKFAST_ALWAYS_VISIBLE = [
   "water", "tea", "coffee", "horlicks", "boost",
   "malai bun", "maska bun", "gulab jamun",
+  "chai", "medium chai", "large chai",
 ];
 
 // GET /api/customer/menu

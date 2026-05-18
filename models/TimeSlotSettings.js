@@ -57,7 +57,7 @@ const TimeSlotSettings = sequelize.define(
     breakfast_closing_time: {
       type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: "12:00",
+      defaultValue: "11:45",
       comment: "Breakfast window end HH:mm (UK local)",
     },
   },
