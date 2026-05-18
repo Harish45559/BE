@@ -1,44 +1,61 @@
 const { TimeSlotSettings } = require("../models");
 const { DateTime } = require("luxon");
 
-// ─── Helper: generate slots for a given date ─────────────────────────────────
-function generateSlots(date, settings) {
-  const { slot_interval_minutes, opening_time, closing_time, prep_time_minutes } = settings;
+// ─── Helper: generate slots for one window ───────────────────────────────────
+function generateWindowSlots(date, openTime, closeTime, settings) {
+  const { slot_interval_minutes, prep_time_minutes } = settings;
+  const [openH, openM] = openTime.split(":").map(Number);
+  const [closeH, closeM] = closeTime.split(":").map(Number);
 
-  const [openH, openM] = opening_time.split(":").map(Number);
-  const [closeH, closeM] = closing_time.split(":").map(Number);
+  const opening = DateTime.fromISO(date, { zone: "Europe/London" }).set({ hour: openH, minute: openM, second: 0, millisecond: 0 });
+  const closing = DateTime.fromISO(date, { zone: "Europe/London" }).set({ hour: closeH, minute: closeM, second: 0, millisecond: 0 });
 
-  // Build opening and closing DateTime in UK time
-  const opening = DateTime.fromISO(date, { zone: "Europe/London" }).set({
-    hour: openH,
-    minute: openM,
-    second: 0,
-    millisecond: 0,
-  });
-  const closing = DateTime.fromISO(date, { zone: "Europe/London" }).set({
-    hour: closeH,
-    minute: closeM,
-    second: 0,
-    millisecond: 0,
-  });
-
-  // Earliest bookable time = now + prep buffer (only relevant for today)
   const now = DateTime.now().setZone("Europe/London");
   const earliest = now.plus({ minutes: prep_time_minutes });
 
   const slots = [];
   let cursor = opening;
-
   while (cursor <= closing) {
-    // For today: skip slots that are already too soon
     const isToday = cursor.hasSame(now, "day");
     if (!isToday || cursor >= earliest) {
       slots.push(cursor.toFormat("HH:mm"));
     }
     cursor = cursor.plus({ minutes: slot_interval_minutes });
   }
-
   return slots;
+}
+
+// ─── Helper: generate slots for the active window only ───────────────────────
+function generateSlots(date, settings) {
+  const toMins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const now = DateTime.now().setZone("Europe/London");
+  const nowMins = now.hour * 60 + now.minute;
+
+  const bOpen  = settings.breakfast_opening_time || "09:00";
+  const bClose = settings.breakfast_closing_time || "12:00";
+  const dOpen  = settings.opening_time           || "17:15";
+  const dClose = settings.closing_time           || "22:45";
+
+  const inBreakfast = nowMins >= toMins(bOpen) && nowMins <= toMins(bClose);
+  const inDinner    = nowMins >= toMins(dOpen) && nowMins <= toMins(dClose);
+
+  // For future dates always show all slots from both windows
+  const isToday = DateTime.fromISO(date, { zone: "Europe/London" }).hasSame(now, "day");
+
+  if (!isToday) {
+    const breakfast = generateWindowSlots(date, bOpen, bClose, settings);
+    const dinner    = generateWindowSlots(date, dOpen, dClose, settings);
+    return [...breakfast, ...dinner];
+  }
+
+  // Today — only show the current active window
+  if (inBreakfast) return generateWindowSlots(date, bOpen, bClose, settings);
+  if (inDinner)    return generateWindowSlots(date, dOpen, dClose, settings);
+
+  // Between windows or outside all windows — show next upcoming window
+  if (nowMins < toMins(bOpen)) return generateWindowSlots(date, bOpen, bClose, settings);
+  if (nowMins < toMins(dOpen)) return generateWindowSlots(date, dOpen, dClose, settings);
+  return []; // past closing time
 }
 
 // ─── GET /api/customer/timeslots?date=YYYY-MM-DD ─────────────────────────────

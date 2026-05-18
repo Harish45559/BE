@@ -241,6 +241,36 @@ async function runMigrations() {
     }
   }
 
+  // 16. breakfast_opening_time + breakfast_closing_time on time_slot_settings
+  for (const [col, def] of [["breakfast_opening_time", "09:00"], ["breakfast_closing_time", "12:00"]]) {
+    try {
+      await qi.addColumn("time_slot_settings", col, {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: def,
+      });
+      console.log(`✅ Migration: ${col} column added`);
+    } catch (err) {
+      if (err.message.includes("already exists")) {
+        console.log(`ℹ️  Migration: ${col} already exists — skipped`);
+      } else {
+        console.error(`⚠️  Migration ${col} failed:`, err.message);
+      }
+    }
+  }
+
+  // 17. Correct dinner times on existing row (old defaults were 17:00 / 23:30)
+  try {
+    await db.query(`
+      UPDATE time_slot_settings
+      SET opening_time = '17:15', closing_time = '22:45'
+      WHERE id = 1 AND opening_time = '17:00' AND closing_time = '23:30';
+    `);
+    console.log("✅ Migration: dinner times corrected to 17:15-22:45");
+  } catch (err) {
+    console.error("⚠️  Migration dinner times failed:", err.message);
+  }
+
 }
 
 /* ================= DATABASE + SERVER START ================= */
