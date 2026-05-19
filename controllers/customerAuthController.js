@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const { Customer } = require("../models");
+const { sendPasswordResetEmail } = require("../utils/sendEmail");
 
 const RESET_SECRET = process.env.CUSTOMER_JWT_SECRET + "_reset";
 
@@ -148,12 +149,24 @@ exports.forgotPassword = async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    // In production: email the link to the customer
-    // For now we return the token so the frontend can redirect directly
+    // Send reset link to customer's email
+    const frontendUrl = process.env.FRONTEND_URL || "https://fe-2n6s.onrender.com";
+    const resetUrl = `${frontendUrl}/customer/reset-password?token=${resetToken}`;
+    try {
+      await sendPasswordResetEmail(customer.email, resetUrl);
+    } catch (emailErr) {
+      console.error("Failed to send reset email:", emailErr.message);
+      // Still return token as fallback so reset works even if email fails
+      return res.status(200).json({
+        success: true,
+        message: "Reset link generated.",
+        resetToken,
+      });
+    }
+
     return res.status(200).json({
       success: true,
-      message: "Password reset link has been generated.",
-      resetToken,  // frontend uses this to build /customer/reset-password?token=...
+      message: "Password reset link sent to your email.",
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: "Server error" });
