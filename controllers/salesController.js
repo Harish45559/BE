@@ -13,6 +13,14 @@ const makeUtcRange = (fromDate, toDate) => {
   return { start, end };
 };
 
+// Exclude unpaid/failed online orders from all sales figures
+const excludePendingOnline = {
+  [Op.or]: [
+    { payment_status: null },
+    { payment_status: { [Op.notIn]: ["pending", "failed"] } },
+  ],
+};
+
 // Prefer final_amount, fallback to total_amount
 const money = (o) => Number(o?.final_amount ?? o?.total_amount ?? 0);
 
@@ -27,7 +35,7 @@ exports.getSalesSummary = async (req, res) => {
       where.created_at = { [Op.between]: [start, end] };
     }
 
-    const orders = await Order.findAll({ where });
+    const orders = await Order.findAll({ where: { ...where, ...excludePendingOnline } });
 
     const totalSales = orders.reduce((sum, o) => sum + money(o), 0);
     const cashSales = orders
@@ -53,7 +61,7 @@ exports.getTopSellingItems = async (req, res) => {
       where.created_at = { [Op.between]: [start, end] };
     }
 
-    const orders = await Order.findAll({ where });
+    const orders = await Order.findAll({ where: { ...where, ...excludePendingOnline } });
 
     const counts = {};
     for (const o of orders) {
@@ -88,7 +96,7 @@ exports.getTotalSales = async (req, res) => {
     where.created_at = { [Op.between]: [start, end] };
 
     const orders = await Order.findAll({
-      where,
+      where: { ...where, ...excludePendingOnline },
       order: [["created_at", "DESC"]],
     });
 
