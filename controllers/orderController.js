@@ -2,6 +2,13 @@ const { Order, HeldOrder } = require("../models");
 const { Op } = require("sequelize");
 const { DateTime } = require("luxon");
 
+const excludePendingOnline = {
+  [Op.or]: [
+    { payment_status: null },
+    { payment_status: { [Op.notIn]: ["pending", "failed"] } },
+  ],
+};
+
 // ✅ ISO UTC string for consistent frontend usage
 
 // ✅ ISO UTC string for consistent frontend usage
@@ -108,7 +115,7 @@ exports.getAllOrders = async (req, res) => {
     if (req.query.source) where.source = req.query.source;
 
     const orders = await Order.findAll({
-      where,
+      where: { ...where, ...excludePendingOnline },
       order: [["created_at", "DESC"]],
     });
 
@@ -145,7 +152,7 @@ exports.getOrdersByDate = async (req, res) => {
     if (req.query.source) where.source = req.query.source;
 
     const orders = await Order.findAll({
-      where,
+      where: { ...where, ...excludePendingOnline },
       order: [["created_at", "DESC"]],
     });
 
@@ -172,7 +179,7 @@ exports.getSalesSummary = async (req, res) => {
       if (from) where.created_at[Op.gte] = new Date(from);
       if (to) where.created_at[Op.lte] = new Date(to);
     }
-    const orders = await Order.findAll({ where });
+    const orders = await Order.findAll({ where: { ...where, ...excludePendingOnline } });
 
     const formatted = orders.map((o) => ({
       ...o.toJSON(),
