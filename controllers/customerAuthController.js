@@ -192,8 +192,8 @@ exports.resetPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: "Account not found" });
     }
 
-    customer.password = await bcrypt.hash(password, 10);
-    await customer.save();
+    const hashed = await bcrypt.hash(password, 10);
+    await Customer.update({ password: hashed }, { where: { id: customer.id }, hooks: false });
 
     return res.status(200).json({ success: true, message: "Password updated successfully" });
   } catch (err) {
