@@ -20,8 +20,9 @@ const generateToken = (customer) => {
 // POST /api/customer/auth/register
 exports.register = async (req, res) => {
   try {
-    const { name, email, phone, address_line1, city, postcode, password } =
+    const { name, phone, address_line1, city, postcode, password } =
       req.body || {};
+    const email = stripDots(req.body?.email);
 
     // Check duplicate email
     const existing = await Customer.findOne({ where: { email } });
@@ -65,12 +66,20 @@ exports.register = async (req, res) => {
   }
 };
 
+// Strips dots from local part: "a.b.c@gmail.com" → "abc@gmail.com"
+const stripDots = (email) => {
+  const [local, domain] = (email || "").toLowerCase().split("@");
+  if (!domain) return (email || "").toLowerCase();
+  return `${local.replace(/\./g, "")}@${domain}`;
+};
+
 // POST /api/customer/auth/login
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body || {};
 
-    const customer = await Customer.findOne({ where: { email } });
+    const normalised = stripDots(email);
+    const customer = await Customer.findOne({ where: { email: normalised } });
 
     if (!customer) {
       return res.status(401).json({
@@ -127,10 +136,11 @@ exports.listCustomers = async (req, res) => {
 // POST /api/customer/auth/forgot-password
 exports.forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body || {};
-    if (!email) {
+    const rawEmail = (req.body || {}).email;
+    if (!rawEmail) {
       return res.status(400).json({ success: false, message: "Email is required" });
     }
+    const email = stripDots(rawEmail);
 
     const customer = await Customer.findOne({ where: { email } });
 
