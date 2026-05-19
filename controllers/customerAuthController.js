@@ -152,17 +152,7 @@ exports.forgotPassword = async (req, res) => {
     // Send reset link to customer's email
     const frontendUrl = process.env.FRONTEND_URL || "https://fe-2n6s.onrender.com";
     const resetUrl = `${frontendUrl}/customer/reset-password?token=${resetToken}`;
-    try {
-      await sendPasswordResetEmail(customer.email, resetUrl);
-    } catch (emailErr) {
-      console.error("Failed to send reset email:", emailErr.message);
-      // Still return token as fallback so reset works even if email fails
-      return res.status(200).json({
-        success: true,
-        message: "Reset link generated.",
-        resetToken,
-      });
-    }
+    await sendPasswordResetEmail(customer.email, resetUrl);
 
     return res.status(200).json({
       success: true,
