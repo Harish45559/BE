@@ -192,7 +192,7 @@ exports.resetPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: "Account not found" });
     }
 
-    customer.password = password; // beforeUpdate hook hashes it
+    customer.password = await bcrypt.hash(password, 10);
     await customer.save();
 
     return res.status(200).json({ success: true, message: "Password updated successfully" });
