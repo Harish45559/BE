@@ -8,7 +8,7 @@ const { MenuItem, Category, TimeSlotSettings } = require("../models");
 const BREAKFAST_ALWAYS_VISIBLE = [
   "water", "tea", "coffee", "horlicks", "boost",
   "malai bun", "maska bun", "gulab jamun",
-  "chai", "medium chai", "large chai",
+  "chai", "small chai", "medium chai", "large chai",
 ];
 
 // GET /api/customer/menu
@@ -28,15 +28,14 @@ router.get("/", async (req, res) => {
     const toMins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
     const nowMins = now.hour * 60 + now.minute;
 
-    const inBreakfast = nowMins >= toMins(bOpen) && nowMins <= toMins(bClose);
-    const inDinner    = nowMins >= toMins(dOpen) && nowMins <= toMins(dClose);
-
     // Build where clause
     const whereClause = { available: true };
     if (category_id) whereClause.categoryId = parseInt(category_id);
 
-    if (inBreakfast && !inDinner) {
-      // Breakfast window — show Breakfast category + always-visible items
+    // Show breakfast menu only from 00:00 until breakfast closes (11:45am)
+    // After that — full menu all day
+    const breakfastOnly = nowMins < toMins(bClose);
+    if (breakfastOnly) {
       const breakfastCat = await Category.findOne({ where: { name: { [Op.iLike]: "breakfast" } } });
       whereClause[Op.or] = [
         ...(breakfastCat ? [{ categoryId: breakfastCat.id }] : []),
@@ -44,7 +43,7 @@ router.get("/", async (req, res) => {
         { name: { [Op.iLike]: { [Op.any]: BREAKFAST_ALWAYS_VISIBLE } } },
       ];
     }
-    // During dinner or overlap — show all available items (no extra filter)
+    // After 11:45am — show all available items
 
     const items = await MenuItem.findAll({
       where: whereClause,
@@ -53,7 +52,7 @@ router.get("/", async (req, res) => {
       order: [["categoryId", "ASC"], ["name", "ASC"]],
     });
 
-    return res.status(200).json({ success: true, items, window: inBreakfast && !inDinner ? "breakfast" : inDinner ? "dinner" : "closed" });
+    return res.status(200).json({ success: true, items, window: breakfastOnly ? "breakfast" : "full" });
   } catch (err) {
     if (process.env.NODE_ENV !== "production") console.error("Customer menu fetch error:", err.message);
     return res.status(500).json({ success: false, message: "Failed to fetch menu" });
