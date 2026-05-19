@@ -1,9 +1,11 @@
-const axios = require("axios");
-
 async function sendPasswordResetEmail(toEmail, resetUrl) {
-  await axios.post(
-    "https://api.resend.com/emails",
-    {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
       from: "Mirchi Mafiya <onboarding@resend.dev>",
       to: toEmail,
       subject: "Reset Your Password — Mirchi Mafiya",
@@ -30,14 +32,13 @@ async function sendPasswordResetEmail(toEmail, resetUrl) {
           <p style="color:#bbb;font-size:0.75rem;text-align:center;">Mirchi Mafiya, Luton</p>
         </div>
       `,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Resend API error ${res.status}: ${err}`);
+  }
 }
 
 module.exports = { sendPasswordResetEmail };
