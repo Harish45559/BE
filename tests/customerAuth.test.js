@@ -2,6 +2,12 @@ const request = require("supertest");
 const app = require("../app");
 const { Customer, Order } = require("../models");
 const { Op } = require("sequelize");
+const jwt = require("jsonwebtoken");
+
+// Mock email sending so tests don't need live SMTP credentials
+jest.mock("../utils/sendEmail", () => ({
+  sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+}));
 
 // Unique email per test run to avoid duplicate conflicts across runs
 const testEmail = `testcustomer_${Date.now()}@example.com`;
@@ -185,16 +191,16 @@ describe("GET /api/customer/auth/me", () => {
 // POST /api/customer/auth/forgot-password
 // ──────────────────────────────────────────────
 describe("POST /api/customer/auth/forgot-password", () => {
-  // ✅ Registered email — returns resetToken
-  test("returns 200 + resetToken for a registered email", async () => {
+  // ✅ Registered email — sends email and returns 200
+  test("returns 200 for a registered email", async () => {
     const res = await request(app)
       .post("/api/customer/auth/forgot-password")
       .send({ email: testEmail });
 
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body).toHaveProperty("resetToken");
-    expect(typeof res.body.resetToken).toBe("string");
+    // resetToken is NOT returned in response (sent via email only)
+    expect(res.body).not.toHaveProperty("resetToken");
   });
 
   // Unknown email — still returns 200 (security: don't reveal if email exists)
@@ -227,12 +233,15 @@ describe("POST /api/customer/auth/forgot-password", () => {
 describe("POST /api/customer/auth/reset-password", () => {
   let resetToken;
 
-  // Get a fresh reset token before tests run
+  // Generate a valid reset token directly (email is sent, not returned in response)
   beforeAll(async () => {
-    const res = await request(app)
-      .post("/api/customer/auth/forgot-password")
-      .send({ email: testEmail });
-    resetToken = res.body.resetToken;
+    const customer = await Customer.findOne({ where: { email: testEmail } });
+    const RESET_SECRET = process.env.CUSTOMER_JWT_SECRET + "_reset";
+    resetToken = jwt.sign(
+      { id: customer.id, email: customer.email, purpose: "reset" },
+      RESET_SECRET,
+      { expiresIn: "1h" }
+    );
   });
 
   // ✅ Valid token + new password
