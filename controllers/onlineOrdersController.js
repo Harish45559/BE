@@ -3,6 +3,19 @@ const { Op } = require("sequelize");
 const { DateTime } = require("luxon");
 const { getIo } = require("../socket");
 
+async function sendExpoPush(customerId, title, body) {
+  try {
+    const customer = await Customer.findByPk(customerId, { attributes: ["expo_push_token"] });
+    const token = customer?.expo_push_token;
+    if (!token || !token.startsWith("ExponentPushToken")) return;
+    await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ to: token, title, body, sound: "default", priority: "high" }),
+    });
+  } catch (_) {}
+}
+
 async function getOrCreateSettings() {
   let s = await TimeSlotSettings.findByPk(1);
   if (!s) s = await TimeSlotSettings.create({ id: 1 });
@@ -226,6 +239,7 @@ exports.acceptOrder = async (req, res) => {
     await order.save();
 
     try { getIo().emit("order:status-changed", { id: order.id, order_number: order.order_number, order_status: "accepted", customer_id: order.customer_id }); } catch (_) {}
+    sendExpoPush(order.customer_id, "✅ Order Accepted!", `Your order #${order.order_number} has been accepted. Ready at ${readyAt}.`);
 
     return res.status(200).json({
       success: true,
@@ -252,6 +266,7 @@ exports.rejectOrder = async (req, res) => {
     order.order_status = "rejected";
     await order.save();
     try { getIo().emit("order:status-changed", { id: order.id, order_number: order.order_number, order_status: "rejected", customer_id: order.customer_id }); } catch (_) {}
+    sendExpoPush(order.customer_id, "❌ Order Rejected", `Sorry, order #${order.order_number} could not be accepted. Please contact us.`);
     return res.status(200).json({
       success: true,
       message: "Order rejected",
@@ -310,6 +325,7 @@ exports.readyOrder = async (req, res) => {
     order.order_status = "ready";
     await order.save();
     try { getIo().emit("order:status-changed", { id: order.id, order_number: order.order_number, order_status: "ready", customer_id: order.customer_id }); } catch (_) {}
+    sendExpoPush(order.customer_id, "🍽️ Order Ready!", `Order #${order.order_number} is ready for collection. Come pick it up!`);
     return res.status(200).json({
       success: true,
       message: "Order marked as ready",

@@ -1,4 +1,5 @@
 const { Category } = require("../models");
+const { getIo } = require("../socket");
 
 exports.getAllCategories = async (req, res) => {
   try {
@@ -17,6 +18,7 @@ exports.createCategory = async (req, res) => {
       return res.status(400).json({ error: "Category name is required" });
     }
     const category = await Category.create({ name });
+    try { getIo().emit("menu:changed"); } catch (_) {}
     res.json(category);
   } catch (err) {
     if (err.name === "SequelizeUniqueConstraintError") {
@@ -35,6 +37,7 @@ exports.updateCategory = async (req, res) => {
     const category = await Category.findByPk(req.params.id);
     if (!category) return res.status(404).json({ error: "Category not found" });
     await category.update({ name });
+    try { getIo().emit("menu:changed"); } catch (_) {}
     res.json(category);
   } catch (err) {
     if (err.name === "SequelizeUniqueConstraintError") {
@@ -62,6 +65,7 @@ exports.deleteCategory = async (req, res) => {
     }
 
     await category.destroy();
+    try { getIo().emit("menu:changed"); } catch (_) {}
     res.json({ message: "Deleted" });
   } catch (err) {
     console.error("Error deleting category:", err);

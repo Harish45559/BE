@@ -48,6 +48,13 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
+/* ================= STATIC FILES ================= */
+
+app.use("/images", (req, res, next) => {
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  next();
+}, express.static("public/images"));
+
 /* ================= BODY PARSER ================= */
 
 app.use(express.json());
@@ -96,6 +103,12 @@ app.use("/api/menu", menuRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/till", tillRoutes);
 app.use("/api/pager", pagerRoutes);
+
+/* ================= APP VERSION CHECK ================= */
+// Update minimum_version here whenever you release a breaking update
+app.get("/api/app/version", (req, res) => {
+  res.json({ minimum_version: "1.0.0" });
+});
 
 /* ================= STATIC PUBLIC ASSETS ================= */
 app.use('/public', express.static(path.join(__dirname, 'public')));

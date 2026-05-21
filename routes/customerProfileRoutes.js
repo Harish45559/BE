@@ -35,6 +35,7 @@ const validatePassword = [
 // POST /api/customer/profile/favourites/toggle/:itemId
 router.put("/", validateProfile, customerProfileController.updateProfile);
 router.put("/password", validatePassword, customerProfileController.changePassword);
+router.patch("/push-token", customerProfileController.savePushToken);
 router.get("/favourites", customerProfileController.getFavourites);
 router.post("/favourites/toggle/:itemId", customerProfileController.toggleFavourite);
 

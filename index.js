@@ -271,6 +271,21 @@ async function runMigrations() {
     console.error("⚠️  Migration dinner times failed:", err.message);
   }
 
+  // 18. expo_push_token column on customers table (mobile push notifications)
+  try {
+    await qi.addColumn("customers", "expo_push_token", {
+      type: DataTypes.STRING,
+      allowNull: true,
+    });
+    console.log("✅ Migration: expo_push_token column added to customers");
+  } catch (err) {
+    if (err.message.includes("already exists")) {
+      console.log("ℹ️  Migration: expo_push_token already exists — skipped");
+    } else {
+      console.error("⚠️  Migration expo_push_token failed:", err.message);
+    }
+  }
+
 }
 
 /* ================= DATABASE + SERVER START ================= */

@@ -29,6 +29,7 @@ exports.createMenuItem = async (req, res) => {
     if (categoryId !== undefined) payload.categoryId = categoryId;
 
     const item = await MenuItem.create(payload);
+    try { getIo().emit("menu:changed"); } catch (_) {}
     res.json(item);
   } catch (err) {
     console.error("Create error:", err);
@@ -94,6 +95,7 @@ exports.updateMenuItem = async (req, res) => {
         { model: Category, as: "category", attributes: ["id", "name"] },
       ],
     });
+    try { getIo().emit("menu:changed"); } catch (_) {}
     res.json(fresh);
   } catch (err) {
     console.error("Update error:", err);
@@ -128,6 +130,7 @@ exports.deleteMenuItem = async (req, res) => {
     const { id } = req.params;
     const deleted = await MenuItem.destroy({ where: { id } });
     if (!deleted) return res.status(404).json({ error: "Menu item not found" });
+    try { getIo().emit("menu:changed"); } catch (_) {}
     res.json({ message: "Item deleted successfully" });
   } catch (err) {
     console.error("Delete error:", err);
