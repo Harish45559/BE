@@ -44,6 +44,11 @@ const Customer = sequelize.define(
       allowNull: false,
     },
 
+    expo_push_token: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
     favourites: {
       type: DataTypes.JSONB,
       allowNull: false,

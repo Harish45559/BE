@@ -100,6 +100,18 @@ exports.getFavourites = async (req, res) => {
   }
 };
 
+// PATCH /api/customer/profile/push-token
+exports.savePushToken = async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (!token) return res.status(400).json({ success: false, message: "token is required" });
+    await Customer.update({ expo_push_token: token }, { where: { id: req.customer.id } });
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Failed to save push token" });
+  }
+};
+
 // POST /api/customer/profile/favourites/toggle/:itemId
 exports.toggleFavourite = async (req, res) => {
   try {
