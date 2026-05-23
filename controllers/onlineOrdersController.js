@@ -63,6 +63,7 @@ exports.getOnlineOrders = async (req, res) => {
         "customer_name",
         "items",
         "total_amount",
+        "discount_amount",
         "final_amount",
         "payment_method",
         "payment_status",
@@ -73,6 +74,7 @@ exports.getOnlineOrders = async (req, res) => {
         "pager_status",
         "customer_id",
         "customer_notes",
+        "promo_code",
       ],
     });
 
@@ -137,6 +139,7 @@ exports.getPendingOnlineOrders = async (req, res) => {
         "customer_name",
         "items",
         "total_amount",
+        "discount_amount",
         "final_amount",
         "payment_method",
         "payment_status",
@@ -147,6 +150,7 @@ exports.getPendingOnlineOrders = async (req, res) => {
         "pager_status",
         "customer_id",
         "customer_notes",
+        "promo_code",
       ],
     });
 

@@ -84,6 +84,7 @@ const menuRoutes = require("./routes/menuRoutes");
 const salesRoutes = require("./routes/salesRoutes");
 const tillRoutes = require("./routes/tillRoutes");
 const pagerRoutes = require("./routes/pagerRoutes");
+const promoRoutes = require("./routes/promoRoutes");
 const { servePagerPage } = require("./controllers/pagerController");
 
 app.use("/api/auth", authRoutes);
@@ -103,6 +104,7 @@ app.use("/api/menu", menuRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/till", tillRoutes);
 app.use("/api/pager", pagerRoutes);
+app.use("/api/promos", promoRoutes);
 
 /* ================= APP VERSION CHECK ================= */
 // Update minimum_version here whenever you release a breaking update

@@ -1,4 +1,7 @@
 const { Order, Customer, MenuItem, TimeSlotSettings } = require("../models");
+const PromoCode = require("../models/PromoCode");
+const PromoUsage = require("../models/PromoUsage");
+const { calculateDiscount } = require("./promoController");
 const { DateTime } = require("luxon");
 const { getIo } = require("../socket");
 
@@ -33,6 +36,7 @@ exports.placeOrder = async (req, res) => {
       table_number,      // optional — for eat_in
       covers,            // optional — for eat_in
       customer_notes,    // optional — special requests e.g. "no onions"
+      promo_code,        // optional — promo code applied at checkout
     } = req.body;
 
     // ── Check online orders enabled ───────────────────────────────────────────
@@ -78,6 +82,7 @@ exports.placeOrder = async (req, res) => {
       name: it.name,
       price: it.price,
       qty: it.qty ?? it.quantity ?? 1,
+      category_id: it.category_id ?? it.categoryId ?? null,
     }));
 
     // ── Compute totals ────────────────────────────────────────────────────────
@@ -86,11 +91,25 @@ exports.placeOrder = async (req, res) => {
       0
     );
 
-    // 2nd anniversary discount — 10% off all online orders today only
-    const todayUK = DateTime.now().setZone("Europe/London").toISODate();
-    const ANNIVERSARY_DATE = "2026-05-18";
-    const discountPercent = todayUK === ANNIVERSARY_DATE ? 10 : 0;
-    const discount_amount = parseFloat(((total_amount * discountPercent) / 100).toFixed(2));
+    // ── Apply promo code if provided ──────────────────────────────────────────
+    let appliedPromo = null;
+    let discount_amount = 0;
+    let appliedPromoCode = null;
+
+    if (promo_code) {
+      const promo = await PromoCode.findOne({
+        where: { code: promo_code.toUpperCase().trim(), active: true },
+      });
+
+      if (promo && !(promo.expires_at && new Date() > new Date(promo.expires_at))
+          && !(promo.max_uses !== null && promo.uses_count >= promo.max_uses)) {
+        const { discount_amount: da } = calculateDiscount(promo, normalisedItems);
+        discount_amount = da;
+        appliedPromo = promo;
+        appliedPromoCode = promo.code;
+      }
+    }
+
     const final_amount = parseFloat((total_amount - discount_amount).toFixed(2));
 
     // ── Fetch customer details ────────────────────────────────────────────────
@@ -112,8 +131,8 @@ exports.placeOrder = async (req, res) => {
       order_number,
       items: normalisedItems,
       total_amount: parseFloat(total_amount.toFixed(2)),
-      discount_percent: discountPercent,
-      discount_amount: discount_amount,
+      discount_percent: 0,
+      discount_amount: parseFloat(discount_amount.toFixed(2)),
       final_amount: final_amount,
       payment_method,
       created_at: now.toUTC().toJSDate(),
@@ -121,9 +140,18 @@ exports.placeOrder = async (req, res) => {
       source: "online",
       customer_id: customer.id,
       pickup_time: pickup_time || null,
-      payment_status: "pending",  // customer pays on collection / at truck
+      payment_status: "pending",
       customer_notes: customer_notes ? customer_notes.trim().slice(0, 500) : null,
+      promo_code: appliedPromoCode,
     });
+
+    // Record promo usage and increment uses_count
+    if (appliedPromo) {
+      try {
+        await PromoUsage.create({ promo_id: appliedPromo.id, customer_id: customer.id, order_id: order.id });
+        await appliedPromo.increment("uses_count");
+      } catch (_) {}
+    }
 
     try { getIo().emit("order:new", { id: order.id, order_number: order.order_number, customer_id: order.customer_id }); } catch (_) {}
 
@@ -136,7 +164,9 @@ exports.placeOrder = async (req, res) => {
         order_type: order.order_type,
         items: order.items,
         total_amount: order.total_amount,
+        discount_amount: order.discount_amount,
         final_amount: order.final_amount,
+        promo_code: order.promo_code,
         payment_method: order.payment_method,
         payment_status: order.payment_status,
         pickup_time: order.pickup_time,
@@ -160,9 +190,9 @@ exports.getMyOrders = async (req, res) => {
       order: [["created_at", "DESC"]],
       attributes: [
         "id", "order_number", "order_type", "items",
-        "total_amount", "final_amount", "payment_method",
+        "total_amount", "discount_amount", "final_amount", "payment_method",
         "payment_status", "order_status", "estimated_ready",
-        "pickup_time", "date", "pager_status", "customer_notes",
+        "pickup_time", "date", "pager_status", "customer_notes", "promo_code",
       ],
     });
 
@@ -180,9 +210,9 @@ exports.getOrderById = async (req, res) => {
       where: { id: req.params.id, customer_id: req.customer.id },
       attributes: [
         "id", "order_number", "order_type", "items",
-        "total_amount", "final_amount", "payment_method",
+        "total_amount", "discount_amount", "final_amount", "payment_method",
         "payment_status", "order_status", "estimated_ready",
-        "pickup_time", "date", "pager_status", "customer_notes",
+        "pickup_time", "date", "pager_status", "customer_notes", "promo_code",
       ],
     });
 

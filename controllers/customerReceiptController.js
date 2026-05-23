@@ -64,6 +64,26 @@ exports.downloadReceipt = async (req, res) => {
             ]
           : []),
 
+        // Promo discount (only if applied)
+        ...(order.promo_code
+          ? [
+              {
+                columns: [
+                  { text: "Subtotal", fontSize: 9, width: "*" },
+                  { text: `£${parseFloat(order.total_amount).toFixed(2)}`, fontSize: 9, alignment: "right", width: "auto" },
+                ],
+                margin: [0, 2, 0, 0],
+              },
+              {
+                columns: [
+                  { text: `Promo: ${order.promo_code}`, fontSize: 9, color: "#228b22", width: "*" },
+                  { text: `-£${parseFloat(order.discount_amount || 0).toFixed(2)}`, fontSize: 9, color: "#228b22", alignment: "right", width: "auto" },
+                ],
+                margin: [0, 1, 0, 2],
+              },
+            ]
+          : []),
+
         // Total
         {
           columns: [
