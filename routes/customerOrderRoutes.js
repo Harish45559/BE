@@ -5,6 +5,7 @@ const customerAuthMiddleware = require("../middleware/customerAuth");
 const customerOrderController = require("../controllers/customerOrderController");
 const customerReceiptController = require("../controllers/customerReceiptController");
 const customerPaymentController = require("../controllers/customerPaymentController");
+const promoController = require("../controllers/promoController");
 
 // All order routes require customer to be logged in
 router.use(customerAuthMiddleware);
@@ -34,6 +35,9 @@ const validateOrder = [
     .withMessage("payment_method must be 'Pay on Collection' or 'Card'"),
   validate,
 ];
+
+// POST /api/customer/orders/validate-promo — validate a promo code
+router.post("/validate-promo", promoController.validate);
 
 // POST /api/customer/orders           — place a new order
 // GET  /api/customer/orders           — get all my orders

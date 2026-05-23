@@ -131,6 +131,13 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: null,
       comment: 'Customer special requests e.g. no onions, less spicy',
     },
+
+    promo_code: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+      comment: 'Promo code applied at checkout, null if none',
+    },
   }, {
     timestamps: false,
     tableName: 'orders'
