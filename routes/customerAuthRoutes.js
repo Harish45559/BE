@@ -41,7 +41,7 @@ const validateRegister = [
 ];
 
 const validateLogin = [
-  body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
+  body("email").isEmail().trim().toLowerCase().withMessage("Valid email is required"),
   body("password").notEmpty().withMessage("Password is required"),
   validate,
 ];
