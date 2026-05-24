@@ -12,17 +12,17 @@ function calculateDiscount(promo, items) {
     qualifying = items.filter((it) => promo.applicable_ids.includes(it.category_id));
   }
 
-  if (qualifying.length === 0) {
-    return { discount_amount: 0, note: "No qualifying items in cart" };
+  if (qualifying.length === 0 && promo.applicable_to !== "all") {
+    return { discount_amount: 0, missingItems: true };
   }
 
-  const qualifyingTotal = qualifying.reduce((s, it) => s + it.price * (it.qty ?? 1), 0);
   const cartTotal = items.reduce((s, it) => s + it.price * (it.qty ?? 1), 0);
 
   let discount_amount = 0;
 
   if (promo.discount_type === "percentage") {
-    discount_amount = parseFloat(((qualifyingTotal * promo.discount_value) / 100).toFixed(2));
+    // Qualifying items act as a gate — discount applies to full cart total
+    discount_amount = parseFloat(((cartTotal * promo.discount_value) / 100).toFixed(2));
   } else if (promo.discount_type === "fixed") {
     discount_amount = parseFloat(Math.min(promo.discount_value, cartTotal).toFixed(2));
   } else if (promo.discount_type === "bogo") {
@@ -94,7 +94,14 @@ exports.validate = async (req, res) => {
       });
     }
 
-    const { discount_amount, note } = calculateDiscount(promo, cartItems);
+    const { discount_amount, missingItems } = calculateDiscount(promo, cartItems);
+
+    if (missingItems) {
+      return res.status(400).json({
+        success: false,
+        message: "Add the required items to your cart to use this promo code",
+      });
+    }
 
     return res.json({
       success: true,
@@ -104,7 +111,6 @@ exports.validate = async (req, res) => {
       discount_type: promo.discount_type,
       discount_value: promo.discount_value,
       discount_amount,
-      note: note || null,
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: "Failed to validate promo code" });
