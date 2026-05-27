@@ -242,7 +242,7 @@ exports.acceptOrder = async (req, res) => {
     order.estimated_ready = readyAt;
     await order.save();
 
-    try { getIo().emit("order:status-changed", { id: order.id, order_number: order.order_number, order_status: "accepted", customer_id: order.customer_id }); } catch (_) {}
+    try { getIo().emit("order:status-changed", { id: order.id, order_number: order.order_number, order_status: "accepted", customer_id: order.customer_id, estimated_ready: readyAt }); } catch (_) {}
     sendExpoPush(order.customer_id, "✅ Order Accepted!", `Your order #${order.order_number} has been accepted. Ready at ${readyAt}.`);
 
     return res.status(200).json({
