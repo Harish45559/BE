@@ -192,7 +192,7 @@ app.get("/privacy-policy", (req, res) => {
     <p>If you have any questions about this privacy policy, contact us at:<br />
     📧 <a href="mailto:mirchimafiyarestaurant@gmail.com">mirchimafiyarestaurant@gmail.com</a></p>
 
-    <p class="footer">Mirchi Mafiya · mirchimafiyarestaurant@gmail.com</p>
+    <p class="footer">Mirchi Mafiya · mirchimafiyaluton@gmail.com</p>
   </div>
 </body>
 </html>`);
