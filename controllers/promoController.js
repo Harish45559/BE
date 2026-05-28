@@ -1,6 +1,7 @@
 const { Op } = require("sequelize");
 const PromoCode = require("../models/PromoCode");
 const PromoUsage = require("../models/PromoUsage");
+const { getIo } = require("../socket");
 
 // ── Shared: calculate discount for a promo against cart items ────────────────
 function calculateDiscount(promo, items) {
@@ -153,6 +154,7 @@ exports.create = async (req, res) => {
       expires_at: expires_at || null,
     });
 
+    try { getIo().emit("promo:updated"); } catch (_) {}
     return res.status(201).json({ success: true, promo });
   } catch (err) {
     console.error("❌ promo create error:", err.message, err.parent?.message);
@@ -176,7 +178,7 @@ exports.update = async (req, res) => {
     ];
     fields.forEach((f) => { if (req.body[f] !== undefined) promo[f] = req.body[f]; });
     await promo.save();
-
+    try { getIo().emit("promo:updated"); } catch (_) {}
     return res.json({ success: true, promo });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to update promo" });
@@ -189,6 +191,7 @@ exports.remove = async (req, res) => {
     const promo = await PromoCode.findByPk(req.params.id);
     if (!promo) return res.status(404).json({ success: false, message: "Promo not found" });
     await promo.destroy();
+    try { getIo().emit("promo:updated"); } catch (_) {}
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ success: false, message: "Failed to delete promo" });
