@@ -50,10 +50,14 @@ app.options("*", cors(corsOptions));
 
 /* ================= STATIC FILES ================= */
 
-app.use("/images", (req, res, next) => {
-  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-  next();
-}, express.static("public/images"));
+app.use(
+  "/images",
+  (req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static("public/images"),
+);
 
 /* ================= BODY PARSER ================= */
 
@@ -113,21 +117,28 @@ app.get("/api/app/version", (req, res) => {
 });
 
 /* ================= STATIC PUBLIC ASSETS ================= */
-app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use("/public", express.static(path.join(__dirname, "public")));
 
 /* ================= ORDER INSTRUCTIONS PAGE ================= */
-const QRCode = require('qrcode');
-app.get('/order', async (req, res) => {
-  const orderUrl = `${process.env.FRONTEND_URL || 'https://fe-2n6s.onrender.com'}/customer/login`;
+const QRCode = require("qrcode");
+app.get("/order", async (req, res) => {
+  const orderUrl = `${process.env.FRONTEND_URL || "https://fe-2n6s.onrender.com"}/customer/login`;
   const qrDataUrl = await QRCode.toDataURL(orderUrl, {
-    width: 180, margin: 1,
-    color: { dark: '#dd3a00', light: '#ffffff' },
+    width: 180,
+    margin: 1,
+    color: { dark: "#dd3a00", light: "#ffffff" },
   });
-  const html = fs.readFileSync(path.join(__dirname, 'public', 'order-instructions.html'), 'utf8');
-  res.setHeader('Content-Type', 'text/html');
-  res.send(html.replace('__QR_DATA_URL__', qrDataUrl).replace('__ORDER_URL__', orderUrl));
+  const html = fs.readFileSync(
+    path.join(__dirname, "public", "order-instructions.html"),
+    "utf8",
+  );
+  res.setHeader("Content-Type", "text/html");
+  res.send(
+    html
+      .replace("__QR_DATA_URL__", qrDataUrl)
+      .replace("__ORDER_URL__", orderUrl),
+  );
 });
-
 
 /* ================= PRIVACY POLICY PAGE ================= */
 app.get("/privacy-policy", (req, res) => {
@@ -248,7 +259,7 @@ app.get("/delete-account", (req, res) => {
     <a class="btn" href="mailto:mirchimafiyarestaurant@gmail.com?subject=Account%20Deletion%20Request">
       📧 Email Us to Delete Account
     </a>
-    <p class="footer">Mirchi Mafiya · mirchimafiyarestaurant@gmail.com</p>
+    <p class="footer">Mirchi Mafiya · mirchimafiyaluton@gmail.com</p>
   </div>
 </body>
 </html>`);
