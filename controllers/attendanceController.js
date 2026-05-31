@@ -117,49 +117,40 @@ exports.updateAttendance = async (req, res) => {
     const { attendanceId, clock_in, clock_out } = req.body;
 
     if (!attendanceId) {
-      return res.status(400).json({
-        error: "attendanceId is required",
-      });
+      console.error("❌ updateAttendance 400: attendanceId is required | body:", req.body);
+      return res.status(400).json({ error: "attendanceId is required" });
     }
 
     const record = await Attendance.findByPk(attendanceId);
 
     if (!record) {
-      return res.status(404).json({
-        error: "Attendance record not found",
-      });
+      console.error(`❌ updateAttendance 404: record not found for id=${attendanceId}`);
+      return res.status(404).json({ error: "Attendance record not found" });
     }
 
     if (clock_in) {
       const ci = DateTime.fromISO(clock_in, { zone: "Europe/London" });
-
       if (!ci.isValid) {
-        return res.status(400).json({
-          error: "Invalid clock_in format",
-        });
+        console.error(`❌ updateAttendance 400: invalid clock_in format | value="${clock_in}"`);
+        return res.status(400).json({ error: "Invalid clock_in format" });
       }
-
       record.clock_in = ci.toUTC().toISO();
       record.clock_in_uk = ci.toFormat("dd/MM/yyyy HH:mm");
     }
 
     if (clock_out) {
       const co = DateTime.fromISO(clock_out, { zone: "Europe/London" });
-
       if (!co.isValid) {
-        return res.status(400).json({
-          error: "Invalid clock_out format",
-        });
+        console.error(`❌ updateAttendance 400: invalid clock_out format | value="${clock_out}"`);
+        return res.status(400).json({ error: "Invalid clock_out format" });
       }
-
       record.clock_out = co.toUTC().toISO();
       record.clock_out_uk = co.toFormat("dd/MM/yyyy HH:mm");
     }
 
     if (new Date(record.clock_out) < new Date(record.clock_in)) {
-      return res.status(400).json({
-        error: "clock_out cannot be earlier than clock_in",
-      });
+      console.error(`❌ updateAttendance 400: clock_out before clock_in | in=${record.clock_in} out=${record.clock_out}`);
+      return res.status(400).json({ error: "clock_out cannot be earlier than clock_in" });
     }
 
     const result = calculateWork(record.clock_in, record.clock_out);
