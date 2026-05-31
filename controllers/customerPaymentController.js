@@ -107,6 +107,22 @@ exports.verifyPayment = async (req, res) => {
   }
 };
 
+// POST /api/customer/orders/:id/mark-payment-failed
+exports.markPaymentFailed = async (req, res) => {
+  try {
+    const order = await Order.findOne({
+      where: { id: req.params.id, customer_id: req.customer.id },
+    });
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+    if (order.payment_status === "paid") return res.status(400).json({ success: false, message: "Order already paid" });
+    await order.update({ payment_status: "failed", order_status: "rejected" });
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error("markPaymentFailed error:", err.message);
+    return res.status(500).json({ success: false, message: "Failed to update order" });
+  }
+};
+
 // POST /api/customer/payments/webhook
 // SumUp calls this when a payment status changes.
 // We verify the checkout with SumUp's API before trusting it.
