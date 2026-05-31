@@ -1,10 +1,32 @@
 const http = require("http");
 const bcrypt = require("bcryptjs");
 const { DataTypes } = require("sequelize");
+const fs = require("fs");
+const path = require("path");
 const db = require("./config/db");
 const { Employee } = require("./models");
 const app = require("./app");
 const { init: initSocket } = require("./socket");
+
+/* ================= FILE LOGGING ================= */
+const logDir = path.join(__dirname, "logs");
+if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
+const logFile = fs.createWriteStream(path.join(logDir, "app.log"), { flags: "a" });
+
+const originalLog = console.log;
+const originalError = console.error;
+
+console.log = (...args) => {
+  const msg = `[${new Date().toISOString()}] INFO: ${args.join(" ")}\n`;
+  logFile.write(msg);
+  originalLog(...args);
+};
+
+console.error = (...args) => {
+  const msg = `[${new Date().toISOString()}] ERROR: ${args.join(" ")}\n`;
+  logFile.write(msg);
+  originalError(...args);
+};
 
 /* ================= AUTO-MIGRATIONS ================= */
 
