@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const path = require("path");
 const fs = require("fs");
 const helmet = require("helmet");
+const morgan = require("morgan");
 
 dotenv.config();
 
@@ -13,6 +14,9 @@ const app = express();
 // Required when running behind a proxy/forward port (mobile testing, Render, ngrok etc.)
 // Allows express-rate-limit to correctly read the client IP from X-Forwarded-For
 app.set("trust proxy", 1);
+
+/* ================= LOGGING ================= */
+app.use(morgan("tiny"));
 
 /* ================= SECURITY ================= */
 app.use(helmet());
