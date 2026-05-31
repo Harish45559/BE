@@ -16,6 +16,10 @@ const app = express();
 app.set("trust proxy", 1);
 
 /* ================= LOGGING ================= */
+const logDir = path.join(__dirname, "logs");
+if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
+const accessLogStream = fs.createWriteStream(path.join(logDir, "app.log"), { flags: "a" });
+app.use(morgan("tiny", { stream: accessLogStream }));
 app.use(morgan("tiny"));
 
 /* ================= SECURITY ================= */
