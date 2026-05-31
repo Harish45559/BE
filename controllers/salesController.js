@@ -5,11 +5,13 @@ const { Order } = require("../models");
 // Inclusive UTC range for YYYY-MM-DD → YYYY-MM-DD
 const todayISO = () => DateTime.now().toISODate();
 
-const makeUtcRange = (fromDate, toDate) => {
+const makeUtcRange = (fromDate, toDate, fromTime, toTime) => {
   const from = (fromDate && fromDate.trim()) || todayISO();
   const to = (toDate && toDate.trim()) || todayISO();
-  const start = new Date(`${from}T00:00:00.000Z`);
-  const end = new Date(`${to}T23:59:59.999Z`);
+  const fTime = (fromTime && fromTime.trim()) || "00:00";
+  const tTime = (toTime && toTime.trim()) || "23:59";
+  const start = DateTime.fromISO(`${from}T${fTime}:00`, { zone: "Europe/London" }).toUTC().toJSDate();
+  const end = DateTime.fromISO(`${to}T${tTime}:59`, { zone: "Europe/London" }).toUTC().toJSDate();
   return { start, end };
 };
 
@@ -28,10 +30,10 @@ const money = (o) => Number(o?.final_amount ?? o?.total_amount ?? 0);
 // -> { totalSales, cashSales, cardSales }
 exports.getSalesSummary = async (req, res) => {
   try {
-    const { fromDate, toDate } = req.query;
+    const { fromDate, toDate, fromTime, toTime } = req.query;
     const where = {};
     if (fromDate && toDate) {
-      const { start, end } = makeUtcRange(fromDate, toDate);
+      const { start, end } = makeUtcRange(fromDate, toDate, fromTime, toTime);
       where.created_at = { [Op.between]: [start, end] };
     }
 
@@ -54,10 +56,10 @@ exports.getSalesSummary = async (req, res) => {
 
 exports.getTopSellingItems = async (req, res) => {
   try {
-    const { fromDate, toDate } = req.query;
+    const { fromDate, toDate, fromTime, toTime } = req.query;
     const where = {};
     if (fromDate && toDate) {
-      const { start, end } = makeUtcRange(fromDate, toDate);
+      const { start, end } = makeUtcRange(fromDate, toDate, fromTime, toTime);
       where.created_at = { [Op.between]: [start, end] };
     }
 
@@ -86,13 +88,13 @@ exports.getTopSellingItems = async (req, res) => {
 
 exports.getTotalSales = async (req, res) => {
   try {
-    const { fromDate, toDate } = req.query;
+    const { fromDate, toDate, fromTime, toTime } = req.query;
     const where = {};
 
     // default to today if no range provided
     const from = fromDate || DateTime.now().toISODate();
     const to = toDate || DateTime.now().toISODate();
-    const { start, end } = makeUtcRange(from, to);
+    const { start, end } = makeUtcRange(from, to, fromTime, toTime);
     where.created_at = { [Op.between]: [start, end] };
 
     const orders = await Order.findAll({
