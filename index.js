@@ -30,298 +30,54 @@ console.error = (...args) => {
 
 /* ================= AUTO-MIGRATIONS ================= */
 
+async function addCol(qi, table, col, def) {
+  try {
+    await qi.addColumn(table, col, def);
+    console.log(`✅ Migration: ${col} added to ${table}`);
+  } catch (err) {
+    if (!err.message.includes("already exists")) {
+      console.error(`⚠️  Migration ${col} failed:`, err.message);
+    }
+  }
+}
+
 async function runMigrations() {
   const qi = db.getQueryInterface();
 
-  // 1. order_number: BIGINT → VARCHAR(20) for DDMM-XXXX format
+  // 1. order_number: BIGINT → VARCHAR(20)
   try {
-    await db.query(
-      `ALTER TABLE orders ALTER COLUMN order_number TYPE VARCHAR(20) USING order_number::text;`,
-    );
+    await db.query(`ALTER TABLE orders ALTER COLUMN order_number TYPE VARCHAR(20) USING order_number::text;`);
     console.log("✅ Migration: order_number → VARCHAR(20)");
   } catch (err) {
-    if (
-      err.message.includes("already") ||
-      err.message.includes("varchar") ||
-      err.message.includes("character varying")
-    ) {
-      console.log("ℹ️  Migration: order_number already VARCHAR — skipped");
-    } else {
+    if (!err.message.includes("already") && !err.message.includes("varchar") && !err.message.includes("character varying")) {
       console.error("⚠️  Migration order_number failed:", err.message);
     }
   }
 
-  // 2. pager_token column
-  try {
-    await qi.addColumn("orders", "pager_token", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      unique: true,
-    });
-    console.log("✅ Migration: pager_token column added");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: pager_token already exists — skipped");
-    } else {
-      console.error("⚠️  Migration pager_token failed:", err.message);
-    }
-  }
+  // 2-19. Column migrations
+  await addCol(qi, "orders", "pager_token",    { type: DataTypes.STRING, allowNull: true, unique: true });
+  await addCol(qi, "orders", "pager_status",   { type: DataTypes.STRING, allowNull: true });
+  await addCol(qi, "orders", "ring_count",     { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 });
+  await addCol(qi, "orders", "source",         { type: DataTypes.STRING, allowNull: false, defaultValue: "pos" });
+  await addCol(qi, "orders", "customer_id",    { type: DataTypes.INTEGER, allowNull: true, defaultValue: null });
+  await addCol(qi, "orders", "pickup_time",    { type: DataTypes.STRING, allowNull: true, defaultValue: null });
+  await addCol(qi, "orders", "payment_status", { type: DataTypes.STRING, allowNull: false, defaultValue: "paid" });
+  await addCol(qi, "orders", "order_status",   { type: DataTypes.STRING, allowNull: false, defaultValue: "pending" });
+  await addCol(qi, "orders", "estimated_ready",{ type: DataTypes.STRING, allowNull: true, defaultValue: null });
+  await addCol(qi, "orders", "customer_notes", { type: DataTypes.TEXT, allowNull: true, defaultValue: null });
+  await addCol(qi, "orders", "promo_code",     { type: DataTypes.STRING, allowNull: true, defaultValue: null });
+  await addCol(qi, "menu_items", "available",  { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true });
+  await addCol(qi, "customers", "favourites",  { type: DataTypes.JSONB, allowNull: false, defaultValue: [] });
+  await addCol(qi, "customers", "expo_push_token", { type: DataTypes.STRING, allowNull: true });
+  await addCol(qi, "time_slot_settings", "online_orders_enabled", { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true });
+  await addCol(qi, "time_slot_settings", "breakfast_opening_time", { type: DataTypes.STRING, allowNull: false, defaultValue: "09:00" });
+  await addCol(qi, "time_slot_settings", "breakfast_closing_time", { type: DataTypes.STRING, allowNull: false, defaultValue: "12:00" });
 
-  // 3. pager_status column
+  // 17. Correct dinner times
   try {
-    await qi.addColumn("orders", "pager_status", {
-      type: DataTypes.STRING,
-      allowNull: true,
-    });
-    console.log("✅ Migration: pager_status column added");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: pager_status already exists — skipped");
-    } else {
-      console.error("⚠️  Migration pager_status failed:", err.message);
-    }
-  }
-
-  // 4. ring_count column (multi-buzz support)
-  try {
-    await qi.addColumn("orders", "ring_count", {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      defaultValue: 0,
-    });
-    console.log("✅ Migration: ring_count column added");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: ring_count already exists — skipped");
-    } else {
-      console.error("⚠️  Migration ring_count failed:", err.message);
-    }
-  }
-
-  // 5. source column — 'pos' | 'online'
-  try {
-    await qi.addColumn("orders", "source", {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: "pos",
-    });
-    console.log("✅ Migration: source column added");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: source already exists — skipped");
-    } else {
-      console.error("⚠️  Migration source failed:", err.message);
-    }
-  }
-
-  // 6. customer_id column — FK to customers table
-  try {
-    await qi.addColumn("orders", "customer_id", {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      defaultValue: null,
-    });
-    console.log("✅ Migration: customer_id column added");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: customer_id already exists — skipped");
-    } else {
-      console.error("⚠️  Migration customer_id failed:", err.message);
-    }
-  }
-
-  // 7. pickup_time column — requested pickup time for takeaway
-  try {
-    await qi.addColumn("orders", "pickup_time", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: null,
-    });
-    console.log("✅ Migration: pickup_time column added");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: pickup_time already exists — skipped");
-    } else {
-      console.error("⚠️  Migration pickup_time failed:", err.message);
-    }
-  }
-
-  // 8. payment_status column — 'paid' | 'pending' | 'failed'
-  try {
-    await qi.addColumn("orders", "payment_status", {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: "paid",
-    });
-    console.log("✅ Migration: payment_status column added");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: payment_status already exists — skipped");
-    } else {
-      console.error("⚠️  Migration payment_status failed:", err.message);
-    }
-  }
-
-  // 9. order_status column — 'pending' | 'accepted' | 'rejected' | 'ready' | 'completed'
-  try {
-    await qi.addColumn("orders", "order_status", {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: "pending",
-    });
-    console.log("✅ Migration: order_status column added");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: order_status already exists — skipped");
-    } else {
-      console.error("⚠️  Migration order_status failed:", err.message);
-    }
-  }
-
-  // 10. estimated_ready column — staff-set ready time
-  try {
-    await qi.addColumn("orders", "estimated_ready", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: null,
-    });
-    console.log("✅ Migration: estimated_ready column added");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: estimated_ready already exists — skipped");
-    } else {
-      console.error("⚠️  Migration estimated_ready failed:", err.message);
-    }
-  }
-
-  // 12. customer_notes column on orders
-  try {
-    await qi.addColumn("orders", "customer_notes", {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      defaultValue: null,
-    });
-    console.log("✅ Migration: customer_notes column added to orders");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: customer_notes already exists — skipped");
-    } else {
-      console.error("⚠️  Migration customer_notes failed:", err.message);
-    }
-  }
-
-  // 13. available column on menu_items
-  try {
-    await qi.addColumn("menu_items", "available", {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: true,
-    });
-    console.log("✅ Migration: available column added to menu_items");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: available already exists — skipped");
-    } else {
-      console.error("⚠️  Migration available failed:", err.message);
-    }
-  }
-
-  // 14. favourites column on customers
-  try {
-    await qi.addColumn("customers", "favourites", {
-      type: DataTypes.JSONB,
-      allowNull: false,
-      defaultValue: [],
-    });
-    console.log("✅ Migration: favourites column added to customers");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: favourites already exists — skipped");
-    } else {
-      console.error("⚠️  Migration favourites failed:", err.message);
-    }
-  }
-
-  // 15. online_orders_enabled column on time_slot_settings
-  try {
-    await qi.addColumn("time_slot_settings", "online_orders_enabled", {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: true,
-    });
-    console.log("✅ Migration: online_orders_enabled column added");
-  } catch (err) {
-    if (
-      err.message.includes("already exists") ||
-      err.message.includes("does not exist")
-    ) {
-      console.log(
-        "ℹ️  Migration: online_orders_enabled already exists — skipped",
-      );
-    } else {
-      console.error("⚠️  Migration online_orders_enabled failed:", err.message);
-    }
-  }
-
-  // 16. breakfast_opening_time + breakfast_closing_time on time_slot_settings
-  for (const [col, def] of [["breakfast_opening_time", "09:00"], ["breakfast_closing_time", "12:00"]]) {
-    try {
-      await qi.addColumn("time_slot_settings", col, {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: def,
-      });
-      console.log(`✅ Migration: ${col} column added`);
-    } catch (err) {
-      if (err.message.includes("already exists")) {
-        console.log(`ℹ️  Migration: ${col} already exists — skipped`);
-      } else {
-        console.error(`⚠️  Migration ${col} failed:`, err.message);
-      }
-    }
-  }
-
-  // 17. Correct dinner times on existing row (old defaults were 17:00 / 23:30)
-  try {
-    await db.query(`
-      UPDATE time_slot_settings
-      SET opening_time = '17:15', closing_time = '22:45'
-      WHERE id = 1 AND opening_time = '17:00' AND closing_time = '23:30';
-    `);
-    console.log("✅ Migration: dinner times corrected to 17:15-22:45");
+    await db.query(`UPDATE time_slot_settings SET opening_time = '17:15', closing_time = '22:45' WHERE id = 1 AND opening_time = '17:00' AND closing_time = '23:30';`);
   } catch (err) {
     console.error("⚠️  Migration dinner times failed:", err.message);
-  }
-
-  // 18. expo_push_token column on customers table (mobile push notifications)
-  try {
-    await qi.addColumn("customers", "expo_push_token", {
-      type: DataTypes.STRING,
-      allowNull: true,
-    });
-    console.log("✅ Migration: expo_push_token column added to customers");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: expo_push_token already exists — skipped");
-    } else {
-      console.error("⚠️  Migration expo_push_token failed:", err.message);
-    }
-  }
-
-  // 19. promo_code column on orders
-  try {
-    await qi.addColumn("orders", "promo_code", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: null,
-    });
-    console.log("✅ Migration: promo_code column added to orders");
-  } catch (err) {
-    if (err.message.includes("already exists")) {
-      console.log("ℹ️  Migration: promo_code already exists — skipped");
-    } else {
-      console.error("⚠️  Migration promo_code failed:", err.message);
-    }
   }
 
   // 20. promo_codes table
