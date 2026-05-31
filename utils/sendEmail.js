@@ -15,7 +15,7 @@ async function sendPasswordResetEmail(toEmail, resetUrl) {
   await transporter.sendMail({
     from: `"Mirchi Mafiya" <${process.env.GMAIL_USER}>`,
     to: toEmail,
-    subject: "Reset Your Password — Mirchi Mafiya",
+    subject: "Your Mirchi Mafiya password reset link",
     html: `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#fff8f5;border-radius:12px;">
         <div style="text-align:center;margin-bottom:20px;">
