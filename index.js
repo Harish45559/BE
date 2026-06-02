@@ -125,6 +125,9 @@ async function runMigrations() {
     }
   }
 
+  // 22. sumup_transaction_code column on orders (needed for refunds)
+  await addCol(qi, "orders", "sumup_transaction_code", { type: DataTypes.STRING, allowNull: true, defaultValue: null });
+
 }
 
 /* ================= DATABASE + SERVER START ================= */

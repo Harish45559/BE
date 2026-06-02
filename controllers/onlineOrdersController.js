@@ -259,27 +259,66 @@ exports.acceptOrder = async (req, res) => {
 };
 
 // ─── PATCH /api/orders/online/:id/reject ─────────────────────────────────────
+async function processSumUpRefund(transactionCode, amount) {
+  try {
+    if (!transactionCode) return { success: false, reason: "No transaction code" };
+    const res = await fetch(`https://api.sumup.com/v0.1/me/refund/${transactionCode}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.SUMUP_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ amount }),
+    });
+    if (res.ok) return { success: true };
+    const body = await res.json().catch(() => ({}));
+    console.error("❌ SumUp refund failed:", body);
+    return { success: false, reason: body?.message || "Refund API error" };
+  } catch (err) {
+    console.error("❌ SumUp refund error:", err.message);
+    return { success: false, reason: err.message };
+  }
+}
+
 exports.rejectOrder = async (req, res) => {
   try {
     const order = await Order.findByPk(req.params.id);
     if (!order || order.source !== "online") {
-      return res
-        .status(404)
-        .json({ success: false, message: "Online order not found" });
+      return res.status(404).json({ success: false, message: "Online order not found" });
     }
+
     order.order_status = "rejected";
+
+    // Auto-refund if paid by card
+    let refundStatus = null;
+    if (order.payment_status === "paid" && order.payment_method === "Card" && order.sumup_transaction_code) {
+      const refund = await processSumUpRefund(order.sumup_transaction_code, order.final_amount);
+      if (refund.success) {
+        order.payment_status = "refunded";
+        refundStatus = "refunded";
+        console.log(`✅ Refund processed for order #${order.order_number}`);
+      } else {
+        console.error(`⚠️  Refund failed for order #${order.order_number}:`, refund.reason);
+        refundStatus = "refund_failed";
+      }
+    }
+
     await order.save();
     try { getIo().emit("order:status-changed", { id: order.id, order_number: order.order_number, order_status: "rejected", customer_id: order.customer_id }); } catch (_) {}
-    sendExpoPush(order.customer_id, "❌ Order Rejected", `Sorry, order #${order.order_number} could not be accepted. Please contact us.`);
+
+    const pushMsg = refundStatus === "refunded"
+      ? `Sorry, order #${order.order_number} was rejected. Your refund has been initiated.`
+      : `Sorry, order #${order.order_number} could not be accepted. Please contact us.`;
+    sendExpoPush(order.customer_id, "❌ Order Rejected", pushMsg);
+
     return res.status(200).json({
       success: true,
       message: "Order rejected",
       order_status: "rejected",
+      refund_status: refundStatus,
     });
   } catch (err) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Failed to reject order" });
+    return res.status(500).json({ success: false, message: "Failed to reject order" });
   }
 };
 

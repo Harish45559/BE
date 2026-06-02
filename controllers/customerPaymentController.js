@@ -95,7 +95,8 @@ exports.verifyPayment = async (req, res) => {
     const checkout = await verifyRes.json();
 
     if (checkout.status === "PAID") {
-      await order.update({ payment_status: "paid", payment_method: "Card" });
+      const txnCode = checkout.transactions?.[0]?.transaction_code || null;
+      await order.update({ payment_status: "paid", payment_method: "Card", sumup_transaction_code: txnCode });
       try { getIo().emit("order:new", { id: order.id, order_number: order.order_number, customer_id: order.customer_id }); } catch (_) {}
       return res.status(200).json({ success: true });
     }
@@ -104,6 +105,22 @@ exports.verifyPayment = async (req, res) => {
   } catch (err) {
     console.error("verifyPayment error:", err.message);
     return res.status(500).json({ success: false, message: "Failed to verify payment" });
+  }
+};
+
+// POST /api/customer/orders/:id/mark-payment-failed
+exports.markPaymentFailed = async (req, res) => {
+  try {
+    const order = await Order.findOne({
+      where: { id: req.params.id, customer_id: req.customer.id },
+    });
+    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+    if (order.payment_status === "paid") return res.status(400).json({ success: false, message: "Order already paid" });
+    await order.update({ payment_status: "failed", order_status: "rejected" });
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error("markPaymentFailed error:", err.message);
+    return res.status(500).json({ success: false, message: "Failed to update order" });
   }
 };
 
@@ -135,8 +152,9 @@ exports.sumupWebhook = async (req, res) => {
     if (!orderId) return res.status(200).json({ received: true });
 
     if (checkout.status === "PAID") {
+      const txnCode = checkout.transactions?.[0]?.transaction_code || null;
       await Order.update(
-        { payment_status: "paid", payment_method: "Card" },
+        { payment_status: "paid", payment_method: "Card", sumup_transaction_code: txnCode },
         { where: { id: orderId } }
       );
       try { getIo().emit("order:new", { id: Number(orderId) }); } catch (_) {}

@@ -50,6 +50,7 @@ router.get("/:id", customerOrderController.getOrderById);
 router.get("/:id/receipt", customerReceiptController.downloadReceipt);
 router.post("/:id/pay", customerPaymentController.createCheckout);
 router.post("/:id/verify-payment", customerPaymentController.verifyPayment);
+router.post("/:id/mark-payment-failed", customerPaymentController.markPaymentFailed);
 // router.patch("/:id/confirm-payment", ...) — Stripe confirm, not needed with SumUp
 
 module.exports = router;

@@ -136,7 +136,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
       defaultValue: null,
-      comment: 'Promo code applied at checkout, null if none',
+    },
+    sumup_transaction_code: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
     },
   }, {
     timestamps: false,
