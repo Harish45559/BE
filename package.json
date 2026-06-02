@@ -8,7 +8,7 @@
     "dev": "nodemon index.js",
     "dev:test": "cross-env NODE_ENV=test nodemon index.js",
     "build": "echo 'no build needed'",
-    "test": "cross-env NODE_ENV=test jest --testTimeout=10000 --forceExit"
+    "test": "cross-env NODE_ENV=test jest --globalSetup=./tests/globalSetup.js --testTimeout=10000 --forceExit"
   },
   "dependencies": {
     "@sumup/sdk": "^0.1.4",
