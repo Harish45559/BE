@@ -95,7 +95,8 @@ exports.verifyPayment = async (req, res) => {
     const checkout = await verifyRes.json();
 
     if (checkout.status === "PAID") {
-      await order.update({ payment_status: "paid", payment_method: "Card" });
+      const txnCode = checkout.transactions?.[0]?.transaction_code || null;
+      await order.update({ payment_status: "paid", payment_method: "Card", sumup_transaction_code: txnCode });
       try { getIo().emit("order:new", { id: order.id, order_number: order.order_number, customer_id: order.customer_id }); } catch (_) {}
       return res.status(200).json({ success: true });
     }
@@ -151,8 +152,9 @@ exports.sumupWebhook = async (req, res) => {
     if (!orderId) return res.status(200).json({ received: true });
 
     if (checkout.status === "PAID") {
+      const txnCode = checkout.transactions?.[0]?.transaction_code || null;
       await Order.update(
-        { payment_status: "paid", payment_method: "Card" },
+        { payment_status: "paid", payment_method: "Card", sumup_transaction_code: txnCode },
         { where: { id: orderId } }
       );
       try { getIo().emit("order:new", { id: Number(orderId) }); } catch (_) {}
