@@ -29,7 +29,7 @@ const validate = (req, res, next) => {
 
 const validateRegister = [
   body("name").notEmpty().trim().withMessage("Name is required"),
-  body("email").isEmail().normalizeEmail().withMessage("Valid email is required"),
+  body("email").isEmail().normalizeEmail({ gmail_remove_dots: false }).withMessage("Valid email is required"),
   body("phone").notEmpty().trim().withMessage("Phone number is required"),
   body("address_line1").notEmpty().trim().withMessage("Address line 1 is required"),
   body("city").notEmpty().trim().withMessage("City is required"),
